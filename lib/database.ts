@@ -923,54 +923,119 @@ function mapCustomer(row: any): Customer {
 }
 
 // ============== CUSTOMER LEDGER ==============
+ export async function createCustomerLedger(
+  entry: CustomerLedger
+): Promise<void> {
+  const { error } = await supabase
+    .from('customer_ledger')
+    .insert({
+      id: entry.id,
+      business_id: entry.businessId,
+      customer_id: entry.customerId,
+      customer_name: entry.customerName,
+      date: entry.date,
+      type: entry.type,
+      description: entry.description,
+      reference_id: entry.referenceId ?? null,
+      debit: entry.debit,
+      credit: entry.credit,
+      balance: entry.balance,
+      created_at: entry.createdAt,
+    });
 
-export async function createCustomerLedger(entry: CustomerLedger): Promise<void> {
-  const database = await getDB();
-  await database.runAsync(
-    `INSERT INTO customer_ledger (id, business_id, customer_id, customer_name, date, type, description,
-     reference_id, debit, credit, balance, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [entry.id, entry.businessId, entry.customerId, entry.customerName, entry.date, entry.type, entry.description,
-     entry.referenceId || null, entry.debit, entry.credit, entry.balance, entry.createdAt]
-  );
-}
-
-export async function getCustomerLedger(customerId: string): Promise<CustomerLedger[]> {
-  const database = await getDB();
-  const rows = await database.getAllAsync<any>(
-    `SELECT * FROM customer_ledger WHERE customer_id = ? ORDER BY date ASC, created_at ASC`, [customerId]
-  );
-  return rows.map(r => ({
-    id: r.id, businessId: r.business_id, customerId: r.customer_id, customerName: r.customer_name,
-    date: r.date, type: r.type, description: r.description, referenceId: r.reference_id,
-    debit: r.debit, credit: r.credit, balance: r.balance, createdAt: r.created_at,
-  }));
-}
-
-export async function getCustomerLedgerByBusiness(businessId: string, customerId: string): Promise<CustomerLedger[]> {
-  const database = await getDB();
-  const rows = await database.getAllAsync<any>(
-    `SELECT * FROM customer_ledger WHERE business_id = ? AND customer_id = ? ORDER BY date ASC, created_at ASC`,
-    [businessId, customerId]
-  );
-  return rows.map(r => ({
-    id: r.id, businessId: r.business_id, customerId: r.customer_id, customerName: r.customer_name,
-    date: r.date, type: r.type, description: r.description, referenceId: r.reference_id,
-    debit: r.debit, credit: r.credit, balance: r.balance, createdAt: r.created_at,
-  }));
-}
-
-export async function recalculateCustomerBalance(customerId: string): Promise<number> {
-  const database = await getDB();
-  const rows = await database.getAllAsync<any>(
-    `SELECT debit, credit FROM customer_ledger WHERE customer_id = ? ORDER BY date ASC, created_at ASC`, [customerId]
-  );
-  let balance = 0;
-  for (const row of rows) {
-    balance += row.debit - row.credit;
+  if (error) {
+    throw error;
   }
-  await database.runAsync(`UPDATE customers SET balance = ? WHERE id = ?`, [balance, customerId]);
+}
+
+export async function getCustomerLedger(
+  customerId: string
+): Promise<CustomerLedger[]> {
+  const { data, error } = await supabase
+    .from('customer_ledger')
+    .select('*')
+    .eq('customer_id', customerId)
+    .order('date', { ascending: true })
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return (data || []).map(mapCustomerLedger);
+}
+
+export async function getCustomerLedgerByBusiness(
+  businessId: string,
+  customerId: string
+): Promise<CustomerLedger[]> {
+  const { data, error } = await supabase
+    .from('customer_ledger')
+    .select('*')
+    .eq('business_id', businessId)
+    .eq('customer_id', customerId)
+    .order('date', { ascending: true })
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return (data || []).map(mapCustomerLedger);
+}
+
+export async function recalculateCustomerBalance(
+  customerId: string
+): Promise<number> {
+  const { data, error } = await supabase
+    .from('customer_ledger')
+    .select('debit, credit')
+    .eq('customer_id', customerId)
+    .order('date', { ascending: true })
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  let balance = 0;
+
+  for (const row of data || []) {
+    balance += Number(row.debit || 0) - Number(row.credit || 0);
+  }
+
+  const { error: updateError } = await supabase
+    .from('customers')
+    .update({
+      balance,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', customerId);
+
+  if (updateError) {
+    throw updateError;
+  }
+
   return balance;
 }
+
+function mapCustomerLedger(row: any): CustomerLedger {
+  return {
+    id: row.id,
+    businessId: row.business_id,
+    customerId: row.customer_id,
+    customerName: row.customer_name,
+    date: row.date,
+    type: row.type,
+    description: row.description,
+    referenceId: row.reference_id,
+    debit: Number(row.debit || 0),
+    credit: Number(row.credit || 0),
+    balance: Number(row.balance || 0),
+    createdAt: row.created_at,
+  };
+}
+
 
 // ============== SUPPLIER LEDGER ==============
 
