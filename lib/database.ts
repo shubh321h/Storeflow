@@ -589,6 +589,35 @@ export async function getProducts(
   return (data || []).map(mapProduct);
 }
 
+function mapProduct(row: Record<string, unknown>): Product {
+  return {
+    id: String(row.id),
+    businessId: String(row.business_id),
+    name: String(row.name || ''),
+    barcode: typeof row.barcode === 'string' ? row.barcode : undefined,
+    sku: typeof row.sku === 'string' ? row.sku : undefined,
+    categoryId: typeof row.category_id === 'string' ? row.category_id : undefined,
+    categoryName: typeof row.category_name === 'string' ? row.category_name : undefined,
+    brand: typeof row.brand === 'string' ? row.brand : undefined,
+    purchasePrice: Number(row.purchase_price || 0),
+    sellingPrice: Number(row.selling_price || 0),
+    mrp: row.mrp == null ? undefined : Number(row.mrp),
+    taxRate: Number(row.tax_rate || 0),
+    unit: String(row.unit || 'Piece'),
+    currentStock: Number(row.current_stock || 0),
+    minStockLevel: Number(row.min_stock_level || 0),
+    supplierId: typeof row.supplier_id === 'string' ? row.supplier_id : undefined,
+    supplierName: typeof row.supplier_name === 'string' ? row.supplier_name : undefined,
+    imageUri: typeof row.image_uri === 'string' ? row.image_uri : undefined,
+    expiryDate: typeof row.expiry_date === 'string' ? row.expiry_date : undefined,
+    batchNumber: typeof row.batch_number === 'string' ? row.batch_number : undefined,
+    notes: typeof row.notes === 'string' ? row.notes : undefined,
+    isArchived: row.is_archived === true || row.is_archived === 1 ? 1 : 0,
+    createdAt: String(row.created_at || ''),
+    updatedAt: String(row.updated_at || ''),
+  };
+}
+
 export async function searchProducts(
   businessId: string,
   query: string
@@ -647,13 +676,13 @@ export async function getLowStockProducts(
     .from('products')
     .select('*')
     .eq('business_id', businessId)
-    .eq('is_archived', false)
-    .gt('current_stock', 0)
-    .lte('current_stock', 'min_stock_level');
+    .eq('is_archived', false);
 
   if (error) throw error;
 
-  return (data || []).map(mapProduct);
+  return (data || [])
+    .map(mapProduct)
+    .filter((product) => product.currentStock <= product.minStockLevel && product.currentStock > 0);
 }
 
 export async function getOutOfStockProducts(

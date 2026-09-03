@@ -88,7 +88,7 @@ export default function BarcodeScannerScreen({ navigation, route }: BarcodeScann
   if (hasPermission === false) {
     return (
       <View style={styles.center}>
-        <Ionicons name="camera-off-outline" size={64} color={COLORS.textTertiary} />
+        <Ionicons name="camera-outline" size={64} color={COLORS.textTertiary} />
         <Text style={styles.permissionText}>Camera permission is required to scan barcodes.</Text>
         <TouchableOpacity style={styles.permissionBtn} onPress={() => navigation.goBack()}>
           <Text style={styles.permissionBtnText}>Go Back</Text>
@@ -241,7 +241,7 @@ const styles = StyleSheet.create({
     opacity: 0.8,
   },
   processingOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0,0,0,0.7)',
     justifyContent: 'center',
     alignItems: 'center',

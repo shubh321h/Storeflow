@@ -157,7 +157,11 @@ export default function BillingScreen({ navigation, route }: BillingScreenProps)
 
   async function handleCustomerSearch(text: string) {
     setCustomerSearch(text);
-    if (!business || !text.trim()) {
+    if (!business) {
+      setCustomers([]);
+      return;
+    }
+    if (!text.trim()) {
       const all = await getCustomers(business.id);
       setCustomers(all);
       return;

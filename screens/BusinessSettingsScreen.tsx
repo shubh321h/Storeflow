@@ -17,19 +17,21 @@ interface BusinessSettingsScreenProps {
 export default function BusinessSettingsScreen({ navigation }: BusinessSettingsScreenProps) {
   const { business, selectBusiness } = useBusiness();
   const [loading, setLoading] = useState(false);
+  const currentBusiness = business;
 
-  if (!business) return (
+  if (!currentBusiness) return (
     <View style={COMMON_STYLES.center}><Text>No business selected</Text></View>
   );
+  const { id: businessId, createdAt, currency, invoiceNextNumber, businessType } = currentBusiness;
 
-  const [formName, setFormName] = useState(business.storeName);
-  const [formOwner, setFormOwner] = useState(business.ownerName);
-  const [formMobile, setFormMobile] = useState(business.mobileNumber);
-  const [formAddress, setFormAddress] = useState(business.address || '');
-  const [formGstin, setFormGstin] = useState(business.gstin || '');
-  const [formTaxRate, setFormTaxRate] = useState(String(business.defaultTaxRate));
-  const [formPrefix, setFormPrefix] = useState(business.invoicePrefix);
-  const [formThankYou, setFormThankYou] = useState(business.thankYouMessage);
+  const [formName, setFormName] = useState(currentBusiness.storeName);
+  const [formOwner, setFormOwner] = useState(currentBusiness.ownerName);
+  const [formMobile, setFormMobile] = useState(currentBusiness.mobileNumber);
+  const [formAddress, setFormAddress] = useState(currentBusiness.address || '');
+  const [formGstin, setFormGstin] = useState(currentBusiness.gstin || '');
+  const [formTaxRate, setFormTaxRate] = useState(String(currentBusiness.defaultTaxRate));
+  const [formPrefix, setFormPrefix] = useState(currentBusiness.invoicePrefix);
+  const [formThankYou, setFormThankYou] = useState(currentBusiness.thankYouMessage);
 
   async function handleSave() {
     if (!formName.trim() || !formOwner.trim() || !formMobile.trim()) {
@@ -39,7 +41,11 @@ export default function BusinessSettingsScreen({ navigation }: BusinessSettingsS
     setLoading(true);
     try {
       const updated: Business = {
-        ...business,
+        id: businessId,
+        createdAt,
+        currency,
+        invoiceNextNumber,
+        businessType,
         storeName: formName.trim(),
         ownerName: formOwner.trim(),
         mobileNumber: formMobile.trim(),
