@@ -514,110 +514,188 @@ function mapSupplier(row: any): Supplier {
 
 // ============== PRODUCTS ==============
 
-export async function createProduct(product: Product): Promise<void> {
-  const database = await getDB();
-  await database.runAsync(
-    `INSERT INTO products (id, business_id, name, barcode, sku, category_id, category_name, brand,
-     purchase_price, selling_price, mrp, tax_rate, unit, current_stock, min_stock_level, supplier_id,
-     supplier_name, image_uri, expiry_date, batch_number, notes, is_archived, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [product.id, product.businessId, product.name, product.barcode || null, product.sku || null,
-     product.categoryId || null, product.categoryName || null, product.brand || null,
-     product.purchasePrice, product.sellingPrice, product.mrp || null, product.taxRate,
-     product.unit, product.currentStock, product.minStockLevel, product.supplierId || null,
-     product.supplierName || null, product.imageUri || null, product.expiryDate || null,
-     product.batchNumber || null, product.notes || null, product.isArchived,
-     product.createdAt, product.updatedAt]
-  );
+ export async function createProduct(product: Product): Promise<void> {
+  const { error } = await supabase.from('products').insert({
+    id: product.id,
+    business_id: product.businessId,
+    name: product.name,
+    barcode: product.barcode || null,
+    sku: product.sku || null,
+    category_id: product.categoryId || null,
+    category_name: product.categoryName || null,
+    brand: product.brand || null,
+    purchase_price: product.purchasePrice,
+    selling_price: product.sellingPrice,
+    mrp: product.mrp || null,
+    tax_rate: product.taxRate,
+    unit: product.unit,
+    current_stock: product.currentStock,
+    min_stock_level: product.minStockLevel,
+    supplier_id: product.supplierId || null,
+    supplier_name: product.supplierName || null,
+    image_uri: product.imageUri || null,
+    expiry_date: product.expiryDate || null,
+    batch_number: product.batchNumber || null,
+    notes: product.notes || null,
+    is_archived: product.isArchived,
+    created_at: product.createdAt,
+    updated_at: product.updatedAt,
+  });
+
+  if (error) throw error;
 }
 
 export async function updateProduct(product: Product): Promise<void> {
-  const database = await getDB();
-  await database.runAsync(
-    `UPDATE products SET name = ?, barcode = ?, sku = ?, category_id = ?, category_name = ?, brand = ?,
-     purchase_price = ?, selling_price = ?, mrp = ?, tax_rate = ?, unit = ?, current_stock = ?,
-     min_stock_level = ?, supplier_id = ?, supplier_name = ?, image_uri = ?, expiry_date = ?,
-     batch_number = ?, notes = ?, is_archived = ?, updated_at = ? WHERE id = ?`,
-    [product.name, product.barcode || null, product.sku || null, product.categoryId || null,
-     product.categoryName || null, product.brand || null, product.purchasePrice, product.sellingPrice,
-     product.mrp || null, product.taxRate, product.unit, product.currentStock, product.minStockLevel,
-     product.supplierId || null, product.supplierName || null, product.imageUri || null,
-     product.expiryDate || null, product.batchNumber || null, product.notes || null, product.isArchived,
-     product.updatedAt, product.id]
-  );
+  const { error } = await supabase
+    .from('products')
+    .update({
+      name: product.name,
+      barcode: product.barcode || null,
+      sku: product.sku || null,
+      category_id: product.categoryId || null,
+      category_name: product.categoryName || null,
+      brand: product.brand || null,
+      purchase_price: product.purchasePrice,
+      selling_price: product.sellingPrice,
+      mrp: product.mrp || null,
+      tax_rate: product.taxRate,
+      unit: product.unit,
+      current_stock: product.currentStock,
+      min_stock_level: product.minStockLevel,
+      supplier_id: product.supplierId || null,
+      supplier_name: product.supplierName || null,
+      image_uri: product.imageUri || null,
+      expiry_date: product.expiryDate || null,
+      batch_number: product.batchNumber || null,
+      notes: product.notes || null,
+      is_archived: product.isArchived,
+      updated_at: product.updatedAt,
+    })
+    .eq('id', product.id)
+    .eq('business_id', product.businessId);
+
+  if (error) throw error;
 }
 
-export async function getProducts(businessId: string, includeArchived = false): Promise<Product[]> {
-  const database = await getDB();
-  let query = `SELECT * FROM products WHERE business_id = ?`;
-  if (!includeArchived) query += ` AND is_archived = 0`;
-  query += ` ORDER BY name`;
-  const rows = await database.getAllAsync<any>(query, [businessId]);
-  return rows.map(mapProduct);
+export async function getProducts(
+  businessId: string,
+  includeArchived = false
+): Promise<Product[]> {
+  let query = supabase
+    .from('products')
+    .select('*')
+    .eq('business_id', businessId)
+    .order('name');
+
+  if (!includeArchived) {
+    query = query.eq('is_archived', false);
+  }
+
+  const { data, error } = await query;
+
+  if (error) throw error;
+
+  return (data || []).map(mapProduct);
 }
 
-export async function searchProducts(businessId: string, query: string): Promise<Product[]> {
-  const database = await getDB();
+export async function searchProducts(
+  businessId: string,
+  query: string
+): Promise<Product[]> {
   const searchTerm = `%${query}%`;
-  const rows = await database.getAllAsync<any>(
-    `SELECT * FROM products WHERE business_id = ? AND is_archived = 0 AND (name LIKE ? OR barcode LIKE ? OR sku LIKE ?) ORDER BY name LIMIT 50`,
-    [businessId, searchTerm, searchTerm, searchTerm]
-  );
-  return rows.map(mapProduct);
+
+  const { data, error } = await supabase
+    .from('products')
+    .select('*')
+    .eq('business_id', businessId)
+    .eq('is_archived', false)
+    .or(`name.ilike.${searchTerm},barcode.ilike.${searchTerm},sku.ilike.${searchTerm}`)
+    .order('name')
+    .limit(50);
+
+  if (error) throw error;
+
+  return (data || []).map(mapProduct);
 }
 
-export async function getProductById(id: string): Promise<Product | null> {
-  const database = await getDB();
-  const row = await database.getFirstAsync<any>(`SELECT * FROM products WHERE id = ?`, [id]);
-  if (!row) return null;
-  return mapProduct(row);
+export async function getProductById(
+  id: string
+): Promise<Product | null> {
+  const { data, error } = await supabase
+    .from('products')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (error) throw error;
+
+  return data ? mapProduct(data) : null;
 }
 
-export async function getProductByBarcode(businessId: string, barcode: string): Promise<Product | null> {
-  const database = await getDB();
-  const row = await database.getFirstAsync<any>(
-    `SELECT * FROM products WHERE business_id = ? AND barcode = ? AND is_archived = 0`, [businessId, barcode]
-  );
-  if (!row) return null;
-  return mapProduct(row);
+export async function getProductByBarcode(
+  businessId: string,
+  barcode: string
+): Promise<Product | null> {
+  const { data, error } = await supabase
+    .from('products')
+    .select('*')
+    .eq('business_id', businessId)
+    .eq('barcode', barcode)
+    .eq('is_archived', false)
+    .maybeSingle();
+
+  if (error) throw error;
+
+  return data ? mapProduct(data) : null;
 }
 
-export async function getLowStockProducts(businessId: string): Promise<Product[]> {
-  const database = await getDB();
-  const rows = await database.getAllAsync<any>(
-    `SELECT * FROM products WHERE business_id = ? AND is_archived = 0 AND current_stock <= min_stock_level AND current_stock > 0`,
-    [businessId]
-  );
-  return rows.map(mapProduct);
+export async function getLowStockProducts(
+  businessId: string
+): Promise<Product[]> {
+  const { data, error } = await supabase
+    .from('products')
+    .select('*')
+    .eq('business_id', businessId)
+    .eq('is_archived', false)
+    .gt('current_stock', 0)
+    .lte('current_stock', 'min_stock_level');
+
+  if (error) throw error;
+
+  return (data || []).map(mapProduct);
 }
 
-export async function getOutOfStockProducts(businessId: string): Promise<Product[]> {
-  const database = await getDB();
-  const rows = await database.getAllAsync<any>(
-    `SELECT * FROM products WHERE business_id = ? AND is_archived = 0 AND current_stock <= 0`, [businessId]
-  );
-  return rows.map(mapProduct);
+export async function getOutOfStockProducts(
+  businessId: string
+): Promise<Product[]> {
+  const { data, error } = await supabase
+    .from('products')
+    .select('*')
+    .eq('business_id', businessId)
+    .eq('is_archived', false)
+    .lte('current_stock', 0);
+
+  if (error) throw error;
+
+  return (data || []).map(mapProduct);
 }
 
-export async function updateProductStock(productId: string, newQty: number): Promise<void> {
-  const database = await getDB();
-  await database.runAsync(
-    `UPDATE products SET current_stock = ?, updated_at = ? WHERE id = ?`,
-    [newQty, new Date().toISOString(), productId]
-  );
+export async function updateProductStock(
+  productId: string,
+  newQty: number
+): Promise<void> {
+  const { error } = await supabase
+    .from('products')
+    .update({
+      current_stock: newQty,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', productId);
+
+  if (error) throw error;
 }
 
-function mapProduct(row: any): Product {
-  return {
-    id: row.id, businessId: row.business_id, name: row.name, barcode: row.barcode, sku: row.sku,
-    categoryId: row.category_id, categoryName: row.category_name, brand: row.brand,
-    purchasePrice: row.purchase_price, sellingPrice: row.selling_price, mrp: row.mrp,
-    taxRate: row.tax_rate, unit: row.unit, currentStock: row.current_stock, minStockLevel: row.min_stock_level,
-    supplierId: row.supplier_id, supplierName: row.supplier_name, imageUri: row.image_uri,
-    expiryDate: row.expiry_date, batchNumber: row.batch_number, notes: row.notes, isArchived: row.is_archived,
-    createdAt: row.created_at, updatedAt: row.updated_at,
-  };
-}
+
 
 // ============== STOCK MOVEMENTS ==============
 
