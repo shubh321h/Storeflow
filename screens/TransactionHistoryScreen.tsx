@@ -125,7 +125,15 @@ export default function TransactionHistoryScreen({ navigation, route }: Transact
             <View style={styles.detailAmountRow}>
               <Text style={styles.detailAmountLabel}>Amount</Text>
               <Text style={styles.detailAmount}>
-                {selectedTransaction && (selectedTransaction.debit > 0 ? '-' : '+')}{formatCurrency(Math.abs(selectedTransaction?.debit > 0 ? selectedTransaction.debit : selectedTransaction?.credit || 0))}
+              {selectedTransaction && (selectedTransaction.debit > 0 ? '-' : '+')}
+{selectedTransaction &&
+  formatCurrency(
+    Math.abs(
+      selectedTransaction.debit > 0
+        ? selectedTransaction.debit
+        : selectedTransaction.credit || 0
+    )
+  )}
               </Text>
             </View>
             <TouchableOpacity style={styles.closeBtn} onPress={() => setShowDetail(false)}>
