@@ -9,7 +9,6 @@ import { View, ActivityIndicator } from 'react-native';
 
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { BusinessProvider, useBusiness } from './context/BusinessContext';
-import { getDB } from './lib/database';
 import { COLORS } from './lib/theme';
 
 import LoginScreen from './screens/LoginScreen';
@@ -127,17 +126,7 @@ function AppNavigator() {
 
 export default function App() {
   const [fontsLoaded] = useFonts({ ...Ionicons.font });
-  const [dbReady, setDbReady] = useState(false);
-
-  useEffect(() => {
-    async function initDb() {
-      await getDB();
-      setDbReady(true);
-    }
-    initDb();
-  }, []);
-
-  if (!fontsLoaded || !dbReady) {
+  if (!fontsLoaded) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8FAFC' }}>
         <ActivityIndicator size="large" color="#1B6B4B" />
@@ -149,7 +138,7 @@ export default function App() {
     <AuthProvider>
       <BusinessProvider>
         <NavigationContainer>
-          <StatusBar style="dark" backgroundColor="#F8FAFC" />
+          <StatusBar style="dark" />
           <AppNavigator />
         </NavigationContainer>
       </BusinessProvider>

@@ -1,7 +1,8 @@
 import { format } from 'date-fns';
+import uuid from 'react-native-uuid';
 
 export function generateId(): string {
-  return `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+  return uuid.v4() as string;
 }
 
 export function formatCurrency(amount: number, currency = '₹'): string {

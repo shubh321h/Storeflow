@@ -7,6 +7,7 @@ import {
   SalesReport, ProductReport, CustomerReport, ExpenseReport,
 } from './types';
 import { generateId, getStartOfDay, getEndOfDay, generateInvoiceNumber } from './utils';
+import { supabase } from '../supabase';
 
 let db: SQLite.SQLiteDatabase | null = null;
 
@@ -334,7 +335,7 @@ export async function createUser(user: User): Promise<void> {
   const database = await getDB();
   await database.runAsync(
     `INSERT INTO users (id, name, email, password_hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
-    [user.id, user.name, user.email, user.passwordHash, user.createdAt, user.updatedAt]
+    [user.id, user.name, user.email, user.passwordHash || '', user.createdAt, user.updatedAt]
   );
 }
 
@@ -355,37 +356,30 @@ export async function getUserById(id: string): Promise<User | null> {
 // ============== BUSINESS ==============
 
 export async function createBusiness(business: Business): Promise<void> {
-  const database = await getDB();
-  await database.runAsync(
-    `INSERT INTO businesses (id, owner_name, store_name, mobile_number, address, gstin, business_type, currency,
-     default_tax_rate, invoice_prefix, invoice_next_number, thank_you_message, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [business.id, business.ownerName, business.storeName, business.mobileNumber, business.address || '',
-     business.gstin || null, business.businessType, business.currency, business.defaultTaxRate,
-     business.invoicePrefix, business.invoiceNextNumber, business.thankYouMessage,
-     business.createdAt, business.updatedAt]
-  );
-  await createBusinessSettings({
-    id: generateId(), businessId: business.id, allowNegativeStock: false,
-    lowStockAlertEnabled: true, paymentReminderEnabled: true, autoBackupEnabled: false,
-    backupInterval: 7, updatedAt: new Date().toISOString(),
+  const { data: session } = await supabase.auth.getSession();
+  if (!session.session?.user.id) throw new Error('You must be signed in to create a business.');
+  const { error } = await supabase.from('businesses').insert({
+    id: business.id, owner_id: session.session.user.id, owner_name: business.ownerName,
+    store_name: business.storeName, mobile_number: business.mobileNumber, address: business.address || null,
+    gstin: business.gstin || null, business_type: business.businessType, currency: business.currency,
+    default_tax_rate: business.defaultTaxRate, invoice_prefix: business.invoicePrefix,
+    invoice_next_number: business.invoiceNextNumber, thank_you_message: business.thankYouMessage,
+    created_at: business.createdAt, updated_at: business.updatedAt,
   });
+  if (error) throw error;
+  await createBusinessSettings({ id: generateId(), businessId: business.id, allowNegativeStock: false, lowStockAlertEnabled: true, paymentReminderEnabled: true, autoBackupEnabled: false, backupInterval: 7, updatedAt: new Date().toISOString() });
 }
 
 export async function getBusinessById(id: string): Promise<Business | null> {
-  const database = await getDB();
-  const row = await database.getFirstAsync<any>(`SELECT * FROM businesses WHERE id = ?`, [id]);
-  if (!row) return null;
-  return mapBusiness(row);
+  const { data, error } = await supabase.from('businesses').select('*').eq('id', id).maybeSingle();
+  if (error) throw error;
+  return data ? mapBusiness(data) : null;
 }
 
 export async function getBusinessesForUser(userId: string): Promise<Business[]> {
-  const database = await getDB();
-  const rows = await database.getAllAsync<any>(
-    `SELECT b.* FROM businesses b JOIN user_businesses ub ON b.id = ub.business_id WHERE ub.user_id = ? ORDER BY b.created_at DESC`,
-    [userId]
-  );
-  return rows.map(mapBusiness);
+  const { data, error } = await supabase.from('business_members').select('businesses(*)').eq('user_id', userId);
+  if (error) throw error;
+  return (data || []).flatMap((row: any) => row.businesses ? [mapBusiness(row.businesses)] : []);
 }
 
 export async function updateBusiness(business: Business): Promise<void> {
@@ -421,11 +415,8 @@ function mapBusiness(row: any): Business {
 // ============== USER BUSINESS ==============
 
 export async function createUserBusiness(ub: { id: string; userId: string; businessId: string; role: string; createdAt: string }): Promise<void> {
-  const database = await getDB();
-  await database.runAsync(
-    `INSERT INTO user_businesses (id, user_id, business_id, role, created_at) VALUES (?, ?, ?, ?, ?)`,
-    [ub.id, ub.userId, ub.businessId, ub.role, ub.createdAt]
-  );
+  const { error } = await supabase.from('business_members').insert({ id: ub.id, user_id: ub.userId, business_id: ub.businessId, role: ub.role, created_at: ub.createdAt });
+  if (error) throw error;
 }
 
 // ============== CATEGORIES ==============
@@ -1321,38 +1312,35 @@ export async function getInvoiceHtml(saleId: string): Promise<string | null> {
 // ============== BUSINESS SETTINGS ==============
 
 export async function createBusinessSettings(settings: BusinessSettings): Promise<void> {
-  const database = await getDB();
-  await database.runAsync(
-    `INSERT INTO business_settings (id, business_id, allow_negative_stock, low_stock_alert_enabled,
-     payment_reminder_enabled, auto_backup_enabled, backup_interval, last_backup_at, pin_code, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [settings.id, settings.businessId, settings.allowNegativeStock ? 1 : 0, settings.lowStockAlertEnabled ? 1 : 0,
-     settings.paymentReminderEnabled ? 1 : 0, settings.autoBackupEnabled ? 1 : 0, settings.backupInterval,
-     settings.lastBackupAt || null, settings.pinCode || null, settings.updatedAt]
-  );
+  const { error } = await supabase.from('business_settings').insert({
+    id: settings.id, business_id: settings.businessId, allow_negative_stock: settings.allowNegativeStock,
+    low_stock_alert_enabled: settings.lowStockAlertEnabled, payment_reminder_enabled: settings.paymentReminderEnabled,
+    auto_backup_enabled: settings.autoBackupEnabled, backup_interval: settings.backupInterval,
+    last_backup_at: settings.lastBackupAt || null, pin_code: settings.pinCode || null, updated_at: settings.updatedAt,
+  });
+  if (error) throw error;
 }
 
 export async function getBusinessSettings(businessId: string): Promise<BusinessSettings | null> {
-  const database = await getDB();
-  const row = await database.getFirstAsync<any>(`SELECT * FROM business_settings WHERE business_id = ?`, [businessId]);
+  const { data: row, error } = await supabase.from('business_settings').select('*').eq('business_id', businessId).maybeSingle();
+  if (error) throw error;
   if (!row) return null;
   return {
-    id: row.id, businessId: row.business_id, allowNegativeStock: row.allow_negative_stock === 1,
-    lowStockAlertEnabled: row.low_stock_alert_enabled === 1, paymentReminderEnabled: row.payment_reminder_enabled === 1,
+    id: row.id, businessId: row.business_id, allowNegativeStock: row.allow_negative_stock,
+    lowStockAlertEnabled: row.low_stock_alert_enabled, paymentReminderEnabled: row.payment_reminder_enabled,
     autoBackupEnabled: row.auto_backup_enabled === 1, backupInterval: row.backup_interval,
     lastBackupAt: row.last_backup_at, pinCode: row.pin_code, updatedAt: row.updated_at,
   };
 }
 
 export async function updateBusinessSettings(settings: BusinessSettings): Promise<void> {
-  const database = await getDB();
-  await database.runAsync(
-    `UPDATE business_settings SET allow_negative_stock = ?, low_stock_alert_enabled = ?, payment_reminder_enabled = ?,
-     auto_backup_enabled = ?, backup_interval = ?, last_backup_at = ?, pin_code = ?, updated_at = ? WHERE business_id = ?`,
-    [settings.allowNegativeStock ? 1 : 0, settings.lowStockAlertEnabled ? 1 : 0, settings.paymentReminderEnabled ? 1 : 0,
-     settings.autoBackupEnabled ? 1 : 0, settings.backupInterval, settings.lastBackupAt || null,
-     settings.pinCode || null, settings.updatedAt, settings.businessId]
-  );
+  const { error } = await supabase.from('business_settings').update({
+    allow_negative_stock: settings.allowNegativeStock, low_stock_alert_enabled: settings.lowStockAlertEnabled,
+    payment_reminder_enabled: settings.paymentReminderEnabled, auto_backup_enabled: settings.autoBackupEnabled,
+    backup_interval: settings.backupInterval, last_backup_at: settings.lastBackupAt || null,
+    pin_code: settings.pinCode || null, updated_at: settings.updatedAt,
+  }).eq('business_id', settings.businessId);
+  if (error) throw error;
 }
 
 // ============== BACKUP RECORDS ==============

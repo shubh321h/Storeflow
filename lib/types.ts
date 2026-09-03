@@ -2,7 +2,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  passwordHash: string;
+  passwordHash?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -12,7 +12,7 @@ export interface Business {
   ownerName: string;
   storeName: string;
   mobileNumber: string;
-  address: string;
+  address?: string;
   gstin?: string;
   businessType: string;
   currency: string;
