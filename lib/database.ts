@@ -743,87 +743,182 @@ export async function getStockMovements(productId: string): Promise<StockMovemen
 }
 
 // ============== CUSTOMERS ==============
-
-export async function createCustomer(customer: Customer): Promise<void> {
-  const database = await getDB();
-  await database.runAsync(
-    `INSERT INTO customers (id, business_id, name, mobile, email, address, opening_balance, balance, credit_limit, notes, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [customer.id, customer.businessId, customer.name, customer.mobile || null, customer.email || null,
-     customer.address || null, customer.openingBalance, customer.balance, customer.creditLimit || null,
-     customer.notes || null, customer.createdAt, customer.updatedAt]
-  );
-  if (customer.openingBalance !== 0) {
-    await createCustomerLedger({
-      id: generateId(), businessId: customer.businessId, customerId: customer.id, customerName: customer.name,
-      date: new Date().toISOString(), type: 'opening_balance',
-      description: 'Opening Balance', referenceId: undefined,
-      debit: customer.openingBalance > 0 ? customer.openingBalance : 0,
-      credit: customer.openingBalance < 0 ? Math.abs(customer.openingBalance) : 0,
-      balance: customer.openingBalance, createdAt: new Date().toISOString(),
+ export async function createCustomer(customer: Customer): Promise<void> {
+  const { error } = await supabase
+    .from('customers')
+    .insert({
+      id: customer.id,
+      business_id: customer.businessId,
+      name: customer.name,
+      mobile: customer.mobile || null,
+      email: customer.email || null,
+      address: customer.address || null,
+      opening_balance: customer.openingBalance,
+      balance: customer.balance,
+      credit_limit: customer.creditLimit ?? null,
+      notes: customer.notes || null,
+      created_at: customer.createdAt,
+      updated_at: customer.updatedAt,
     });
+
+  if (error) {
+    throw error;
   }
+
+  // Customer ledger will be migrated separately.
+  // Do not call the old SQLite createCustomerLedger() here.
 }
 
 export async function updateCustomer(customer: Customer): Promise<void> {
-  const database = await getDB();
-  await database.runAsync(
-    `UPDATE customers SET name = ?, mobile = ?, email = ?, address = ?, credit_limit = ?, notes = ?, updated_at = ? WHERE id = ?`,
-    [customer.name, customer.mobile || null, customer.email || null, customer.address || null,
-     customer.creditLimit || null, customer.notes || null, customer.updatedAt, customer.id]
-  );
+  const { error } = await supabase
+    .from('customers')
+    .update({
+      name: customer.name,
+      mobile: customer.mobile || null,
+      email: customer.email || null,
+      address: customer.address || null,
+      credit_limit: customer.creditLimit ?? null,
+      notes: customer.notes || null,
+      updated_at: customer.updatedAt,
+    })
+    .eq('id', customer.id);
+
+  if (error) {
+    throw error;
+  }
 }
 
 export async function getCustomers(businessId: string): Promise<Customer[]> {
-  const database = await getDB();
-  const rows = await database.getAllAsync<any>(`SELECT * FROM customers WHERE business_id = ? ORDER BY name`, [businessId]);
-  return rows.map(mapCustomer);
+  const { data, error } = await supabase
+    .from('customers')
+    .select('*')
+    .eq('business_id', businessId)
+    .order('name');
+
+  if (error) {
+    throw error;
+  }
+
+  return (data || []).map(mapCustomer);
 }
 
-export async function searchCustomers(businessId: string, query: string): Promise<Customer[]> {
-  const database = await getDB();
-  const searchTerm = `%${query}%`;
-  const rows = await database.getAllAsync<any>(
-    `SELECT * FROM customers WHERE business_id = ? AND (name LIKE ? OR mobile LIKE ?) ORDER BY name`,
-    [businessId, searchTerm, searchTerm]
+export async function searchCustomers(
+  businessId: string,
+  query: string
+): Promise<Customer[]> {
+  const { data, error } = await supabase
+    .from('customers')
+    .select('*')
+    .eq('business_id', businessId)
+    .or(`name.ilike.%${query}%,mobile.ilike.%${query}%`)
+    .order('name');
+
+  if (error) {
+    throw error;
+  }
+
+  return (data || []).map(mapCustomer);
+}
+
+export async function getCustomerById(
+  id: string
+): Promise<Customer | null> {
+  const { data, error } = await supabase
+    .from('customers')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  return mapCustomer(data);
+}
+
+export async function updateCustomerBalance(
+  customerId: string,
+  newBalance: number
+): Promise<void> {
+  const { error } = await supabase
+    .from('customers')
+    .update({
+      balance: newBalance,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', customerId);
+
+  if (error) {
+    throw error;
+  }
+}
+
+export async function getCustomerStats(
+  businessId: string,
+  customerId: string
+): Promise<{
+  totalPurchases: number;
+  totalPaid: number;
+  purchaseCount: number;
+}> {
+  const { data: sales, error: salesError } = await supabase
+    .from('sales')
+    .select('total')
+    .eq('business_id', businessId)
+    .eq('customer_id', customerId)
+    .eq('status', 'completed');
+
+  if (salesError) {
+    throw salesError;
+  }
+
+  const { data: payments, error: paymentsError } = await supabase
+    .from('payments')
+    .select('amount')
+    .eq('business_id', businessId)
+    .eq('customer_id', customerId);
+
+  if (paymentsError) {
+    throw paymentsError;
+  }
+
+  const totalPurchases = (sales || []).reduce(
+    (sum, sale) => sum + Number(sale.total || 0),
+    0
   );
-  return rows.map(mapCustomer);
-}
 
-export async function getCustomerById(id: string): Promise<Customer | null> {
-  const database = await getDB();
-  const row = await database.getFirstAsync<any>(`SELECT * FROM customers WHERE id = ?`, [id]);
-  if (!row) return null;
-  return mapCustomer(row);
-}
-
-export async function updateCustomerBalance(customerId: string, newBalance: number): Promise<void> {
-  const database = await getDB();
-  await database.runAsync(`UPDATE customers SET balance = ?, updated_at = ? WHERE id = ?`, [newBalance, new Date().toISOString(), customerId]);
-}
-
-export async function getCustomerStats(businessId: string, customerId: string): Promise<{ totalPurchases: number; totalPaid: number; purchaseCount: number }> {
-  const database = await getDB();
-  const purchases = await database.getFirstAsync<any>(
-    `SELECT SUM(total) as total, COUNT(*) as count FROM sales WHERE business_id = ? AND customer_id = ? AND status = 'completed'`,
-    [businessId, customerId]
+  const totalPaid = (payments || []).reduce(
+    (sum, payment) => sum + Number(payment.amount || 0),
+    0
   );
-  const payments = await database.getFirstAsync<any>(
-    `SELECT SUM(amount) as total FROM payments WHERE business_id = ? AND customer_id = ?`,
-    [businessId, customerId]
-  );
+
   return {
-    totalPurchases: purchases?.total || 0,
-    totalPaid: payments?.total || 0,
-    purchaseCount: purchases?.count || 0,
+    totalPurchases,
+    totalPaid,
+    purchaseCount: sales?.length || 0,
   };
 }
 
 function mapCustomer(row: any): Customer {
   return {
-    id: row.id, businessId: row.business_id, name: row.name, mobile: row.mobile, email: row.email,
-    address: row.address, openingBalance: row.opening_balance || 0, balance: row.balance, creditLimit: row.credit_limit,
-    notes: row.notes, createdAt: row.created_at, updatedAt: row.updated_at,
+    id: row.id,
+    businessId: row.business_id,
+    name: row.name,
+    mobile: row.mobile,
+    email: row.email,
+    address: row.address,
+    openingBalance: Number(row.opening_balance || 0),
+    balance: Number(row.balance || 0),
+    creditLimit: row.credit_limit != null
+      ? Number(row.credit_limit)
+      : undefined,
+    notes: row.notes,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   };
 }
 
