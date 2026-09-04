@@ -6,7 +6,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { useBusiness } from '../context/BusinessContext';
-import { createBusiness, createUserBusiness } from '../lib/database';
+import { createBusiness } from '../lib/database';
 import { Business } from '../lib/types';
 import { generateId, validateMobile } from '../lib/utils';
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOW, COMMON_STYLES } from '../lib/theme';
@@ -69,13 +69,6 @@ export default function BusinessSetupScreen({ onComplete }: BusinessSetupScreenP
       };
 
       await createBusiness(business);
-      await createUserBusiness({
-        id: generateId(),
-        userId: user.id,
-        businessId: businessId,
-        role: 'owner',
-        createdAt: new Date().toISOString(),
-      });
       await selectBusiness(businessId);
       onComplete();
     } catch (e) {
