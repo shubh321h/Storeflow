@@ -4,6 +4,7 @@ import { CameraView, Camera } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 import { useBusiness } from '../context/BusinessContext';
 import { getProductByBarcode } from '../lib/database';
+import { getFoodProductByBarcode, FoodProductMetadata } from '../lib/openFoodFacts';
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS } from '../lib/theme';
 
 interface BarcodeScannerScreenProps {
@@ -39,8 +40,10 @@ export default function BarcodeScannerScreen({ navigation, route }: BarcodeScann
     }
 
     try {
+      // Step 1: Check if product exists in StoreFlow
       const product = await getProductByBarcode(business.id, data);
       if (product) {
+        // Product found in StoreFlow - keep existing behavior
         if (fromScreen === 'Billing') {
           navigation.goBack();
           navigation.navigate('Billing', { scannedProduct: product });
@@ -49,23 +52,37 @@ export default function BarcodeScannerScreen({ navigation, route }: BarcodeScann
           navigation.navigate('Products', { barcode: data, scannedProduct: product });
         }
       } else {
-        if (mode === 'add') {
+        // Step 2: Product not in StoreFlow - try Open Food Facts
+        const externalMetadata = await getFoodProductByBarcode(data);
+        
+        if (externalMetadata) {
+          // Step 3: Found in Open Food Facts - pass metadata to Products screen
           navigation.goBack();
-          navigation.navigate('Products', { barcode: data });
+          navigation.navigate('Products', {
+            barcode: data,
+            scannedProduct: undefined,
+            externalProductMetadata: externalMetadata,
+          });
         } else {
-          Alert.alert(
-            'Product Not Found',
-            `No product found with barcode ${data}. Would you like to add it?`,
-            [
-              { text: 'Cancel', style: 'cancel', onPress: () => setScanned(false) },
-              {
-                text: 'Add Product', onPress: () => {
-                  navigation.goBack();
-                  navigation.navigate('Products', { barcode: data });
-                }
-              },
-            ]
-          );
+          // Step 4: Not found anywhere - show product not found dialog
+          if (mode === 'add') {
+            navigation.goBack();
+            navigation.navigate('Products', { barcode: data });
+          } else {
+            Alert.alert(
+              'Product Not Found',
+              `No product found with barcode ${data}. Would you like to add it?`,
+              [
+                { text: 'Cancel', style: 'cancel', onPress: () => setScanned(false) },
+                {
+                  text: 'Add Product', onPress: () => {
+                    navigation.goBack();
+                    navigation.navigate('Products', { barcode: data });
+                  }
+                },
+              ]
+            );
+          }
         }
       }
     } catch (e) {
