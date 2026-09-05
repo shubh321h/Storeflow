@@ -78,12 +78,44 @@ export default function ProductsScreen({ navigation, route }: ProductsScreenProp
     { value: 'correction', label: 'Correction' },
   ];
 
-  const handleBarcodeScanned = useCallback((barcode: string) => {
-    if (barcode) {
+const handleBarcodeScanned = useCallback(
+  (barcode: string, metadata?: FoodProductMetadata) => {
+    if (!barcode) return;
+
+    setEditingProduct(null);
+    setFormBarcode(barcode);
+
+    if (metadata) {
+      setFormName(metadata.name || '');
+      setFormBrand(metadata.brand || '');
+      setFormCategory(metadata.category || '');
+
+      // Try to detect the most appropriate unit
+      const quantity = (metadata.quantity || '').toLowerCase();
+
+      if (quantity.includes('kg')) {
+        setFormUnit('Kg');
+      } else if (quantity.includes('mg')) {
+        setFormUnit('Gram');
+      } else if (quantity.includes('g')) {
+        setFormUnit('Gram');
+      } else if (quantity.includes('ml')) {
+        setFormUnit('Ml');
+      } else if (quantity.includes('l')) {
+        setFormUnit('Litre');
+      } else {
+        setFormUnit('Piece');
+      }
+    } else {
+      resetForm();
       setFormBarcode(barcode);
-      setShowAddModal(true);
     }
-  }, []);
+
+    setShowAddModal(true);
+  },
+  []
+);
+    
 
   React.useEffect(() => {
     if (route.params?.newBill) {
