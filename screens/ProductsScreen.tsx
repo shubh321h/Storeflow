@@ -10,6 +10,7 @@ import {
   getProducts, searchProducts, createProduct, updateProduct, getCategories, getSuppliers, createCategory, createStockMovement, updateProductStock, getStockMovements,
 } from '../lib/database';
 import { Product, Category, Supplier, StockMovement } from '../lib/types';
+import { generateId, debounce, roundTo2 } from '../lib/utils';
 import { FoodProductMetadata } from '../lib/openFoodFacts';
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOW, COMMON_STYLES } from '../lib/theme';
 import AppHeader from '../components/AppHeader';
