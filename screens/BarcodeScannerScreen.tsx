@@ -1,4 +1,4 @@
-```tsx
+
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -128,33 +128,34 @@ export default function BarcodeScannerScreen({
         navigation.navigate('Products', {
           barcode: data,
         });
-      } else {
-        Alert.alert(
-          'Product Not Found',
-          `No product found with barcode ${data}. Would you like to add it?`,
-          [
-            {
-              text: 'Cancel',
-              style: 'cancel',
-              onPress: () => {
-                setScanned(false);
-                setProcessing(false);
-              },
+      } else 
+      Alert.alert(
+        'Product Not Found',
+        `No product found with barcode ${data}. Would you like to add it?`,
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+            onPress: () => {
+              setScanned(false);
+              setProcessing(false);
             },
-            {
-              text: 'Add Product',
-              onPress: () => {
-                navigation.goBack();
+          },
+          {
+            text: 'Add Product',
+            onPress: () => {
+              navigation.goBack();
 
-                navigation.navigate('Products', {
-                  barcode: data,
-                });
-              },
+              navigation.navigate('Products', {
+                barcode: data,
+              });
             },
-          ],
-        );
-      }
-    } catch (error) {
+          },
+        ],
+      );
+
+        
+     catch (error) {
       console.error('Barcode product lookup error:', error);
 
       Alert.alert(
