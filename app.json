@@ -6,24 +6,25 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-
     "ios": {
       "supportsTablet": true
     },
-
     "android": {
       "package": "com.storeflow.app",
       "predictiveBackGestureEnabled": false
     },
-
     "web": {
       "favicon": "./assets/favicon.png"
     },
-
     "platforms": [
       "ios",
       "android",
       "web"
+    ],
+    "plugins": [
+      "expo-image",
+      "expo-secure-store",
+      "expo-sharing"
     ]
   }
 }
