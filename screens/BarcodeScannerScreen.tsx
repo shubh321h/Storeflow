@@ -128,34 +128,35 @@ export default function BarcodeScannerScreen({
         navigation.navigate('Products', {
           barcode: data,
         });
-      } else 
-      Alert.alert(
-        'Product Not Found',
-        `No product found with barcode ${data}. Would you like to add it?`,
-        [
-          {
-            text: 'Cancel',
-            style: 'cancel',
-            onPress: () => {
-              setScanned(false);
-              setProcessing(false);
-            },
-          },
-          {
-            text: 'Add Product',
-            onPress: () => {
-              navigation.goBack();
 
-              navigation.navigate('Products', {
-                barcode: data,
-              });
+        return;
+      } else {
+        Alert.alert(
+          'Product Not Found',
+          `No product found with barcode ${data}. Would you like to add it?`,
+          [
+            {
+              text: 'Cancel',
+              style: 'cancel',
+              onPress: () => {
+                setScanned(false);
+                setProcessing(false);
+              },
             },
-          },
-        ],
-      );
+            {
+              text: 'Add Product',
+              onPress: () => {
+                navigation.goBack();
 
-        
-     catch (error) {
+                navigation.navigate('Products', {
+                  barcode: data,
+                });
+              },
+            },
+          ],
+        );
+      }
+    } catch (error) {
       console.error('Barcode product lookup error:', error);
 
       Alert.alert(
