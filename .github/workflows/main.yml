@@ -53,6 +53,7 @@ jobs:
         env:
           EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
           EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+          GRADLE_OPTS: "-Xmx6g -XX:MaxMetaspaceSize=1024m"
         run: ./gradlew assembleRelease --no-daemon --stacktrace
 
       # 8. Upload APK
