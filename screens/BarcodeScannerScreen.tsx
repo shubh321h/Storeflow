@@ -472,4 +472,3 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZE.md,
   },
 });
-```
