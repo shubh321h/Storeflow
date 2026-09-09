@@ -1,3 +1,4 @@
+```json
 {
   "name": "expo-router-ts",
   "version": "1.0.0",
@@ -13,7 +14,6 @@
     "date-fns": "^4.4.0",
     "expo": "~57.0.18",
     "expo-asset": "^57.0.15",
-    "expo-barcode-scanner": "^13.0.1",
     "expo-camera": "^57.0.4",
     "expo-constants": "^57.0.16",
     "expo-font": "^57.0.3",
@@ -50,3 +50,4 @@
   },
   "private": true
 }
+```
