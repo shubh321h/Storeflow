@@ -145,9 +145,7 @@ const handleBarcodeScanned = useCallback(
   },
   []
 );
-    
-
-React.useEffect(() => {
+    React.useEffect(() => {
   if (route.params?.newBill) {
     navigation.navigate('Billing', { newBill: true });
   }
@@ -155,15 +153,20 @@ React.useEffect(() => {
   if (route.params?.barcode) {
     handleBarcodeScanned(
       route.params.barcode,
+      route.params.scannedProduct,
       route.params.externalProductMetadata
     );
   }
 }, [
   route.params?.newBill,
   route.params?.barcode,
+  route.params?.scannedProduct,
   route.params?.externalProductMetadata,
   handleBarcodeScanned,
 ]);
+
+
+
 
   async function loadData() {
     if (!business) return;
