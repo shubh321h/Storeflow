@@ -1878,5 +1878,8 @@ export async function getSalesReport(
       await Promise.all(
         sales.map(x => getSaleItems(x.id))
       )
-    )
-      
+    ).reduce(
+      (sum, items) => sum + items.length,
+      0
+    ),
+  };
