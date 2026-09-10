@@ -67,115 +67,120 @@ export default function BarcodeScannerScreen({
       mounted = false;
     };
   }, []);
+async function handleBarcodeScanned({ data }: { data: string }) {
+  if (scanned || processing) return;
 
-  async function handleBarcodeScanned({ data }: { data: string }) {
-    if (scanned || processing) return;
+  setScanned(true);
+  setProcessing(true);
 
-    setScanned(true);
-    setProcessing(true);
+  if (!business) {
+    Alert.alert('Error', 'No business selected');
+    setProcessing(false);
+    setScanned(false);
+    return;
+  }
 
-    if (!business) {
-      Alert.alert('Error', 'No business selected');
-      setProcessing(false);
-      setScanned(false);
+  try {
+    // 1. Search StoreFlow database first
+    const product = await getProductByBarcode(business.id, data);
+
+    if (product) {
+      // Existing product found in StoreFlow
+      if (fromScreen === 'Billing') {
+        navigation.navigate('MainTabs', {
+          screen: 'Billing',
+          params: {
+            scannedProduct: product,
+          },
+        });
+      } else {
+        navigation.navigate('MainTabs', {
+          screen: 'Products',
+          params: {
+            barcode: data,
+            scannedProduct: product,
+          },
+        });
+      }
+
       return;
     }
 
-    try {
-      // Step 1: Check if product exists in StoreFlow
-      const product = await getProductByBarcode(business.id, data);
+    // 2. Not found locally -> search Open Food Facts
+    const externalMetadata: FoodProductMetadata | null =
+      await getFoodProductByBarcode(data);
 
-      if (product) {
-        // Product found in StoreFlow - keep existing behavior
-        if (fromScreen === 'Billing') {
-          navigation.goBack();
-          navigation.navigate('Billing', {
-            scannedProduct: product,
-          });
-        } else {
-          navigation.goBack();
-          navigation.navigate('Products', {
-            barcode: data,
-            scannedProduct: product,
-          });
-        }
-
-        return;
-      }
-
-      // Step 2: Product not in StoreFlow - try Open Food Facts
-      const externalMetadata: FoodProductMetadata | null =
-        await getFoodProductByBarcode(data);
-
-      if (externalMetadata) {
-        // Step 3: Found in Open Food Facts
-        // Pass metadata to Products screen
-        navigation.goBack();
-
-        navigation.navigate('Products', {
+    if (externalMetadata) {
+      navigation.navigate('MainTabs', {
+        screen: 'Products',
+        params: {
           barcode: data,
-          scannedProduct: undefined,
           externalProductMetadata: externalMetadata,
-        });
+        },
+      });
 
-        return;
-      }
-
-      // Step 4: Not found anywhere
-      if (mode === 'add') {
-        navigation.goBack();
-
-        navigation.navigate('Products', {
-          barcode: data,
-        });
-
-        return;
-      } else {
-        Alert.alert(
-          'Product Not Found',
-          `No product found with barcode ${data}. Would you like to add it?`,
-          [
-            {
-              text: 'Cancel',
-              style: 'cancel',
-              onPress: () => {
-                setScanned(false);
-                setProcessing(false);
-              },
-            },
-            {
-              text: 'Add Product',
-              onPress: () => {
-                navigation.goBack();
-
-                navigation.navigate('Products', {
-                  barcode: data,
-                });
-              },
-            },
-          ],
-        );
-      }
-    } catch (error) {
-      console.error('Barcode product lookup error:', error);
-
-      Alert.alert(
-        'Error',
-        'Failed to search for product',
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              setScanned(false);
-              setProcessing(false);
-            },
-          },
-        ],
-      );
-    } finally {
-      setProcessing(false);
+      return;
     }
+
+    // 3. Nothing found -> open manual Add Product form
+    if (mode === 'add') {
+      navigation.navigate('MainTabs', {
+        screen: 'Products',
+        params: {
+          barcode: data,
+        },
+      });
+
+      return;
+    }
+
+    // 4. Normal scan mode -> ask whether to add product
+    Alert.alert(
+      'Product Not Found',
+      `No product found with barcode ${data}. Would you like to add it?`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+          onPress: () => {
+            setScanned(false);
+            setProcessing(false);
+          },
+        },
+        {
+          text: 'Add Product',
+          onPress: () => {
+            navigation.navigate('MainTabs', {
+              screen: 'Products',
+              params: {
+                barcode: data,
+              },
+            });
+          },
+        },
+      ],
+    );
+  } catch (error) {
+    console.error('Barcode product lookup error:', error);
+
+    Alert.alert(
+      'Error',
+      'Failed to search for product',
+      [
+        {
+          text: 'OK',
+          onPress: () => {
+            setScanned(false);
+            setProcessing(false);
+          },
+        },
+      ],
+    );
+  } finally {
+    setProcessing(false);
   }
+}
+
 
   if (hasPermission === null) {
     return (
