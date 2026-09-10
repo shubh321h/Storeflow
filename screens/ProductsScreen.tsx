@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View, Text, FlatList, StyleSheet, TouchableOpacity, Modal, TextInput, ScrollView,
   KeyboardAvoidingView, Platform, Alert,
@@ -30,9 +30,13 @@ interface ProductsScreenProps {
 export default function ProductsScreen({ navigation, route }: ProductsScreenProps) {
   const { business } = useBusiness();
   const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showAddModal, setShowAddModal] = useState(false);
+const [loading, setLoading] = useState(true);
+const [error, setError] = useState<string | null>(null);
+const [searchQuery, setSearchQuery] = useState('');
+
+const loadingRef = useRef(false);
+const barcodeHandledRef = useRef<string | null>(null);
+    const [showAddModal, setShowAddModal] = useState(false);
   const [showStockModal, setShowStockModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -145,52 +149,96 @@ const handleBarcodeScanned = useCallback(
   },
   []
 );
-    React.useEffect(() => {
-  if (route.params?.newBill) {
+  React.useEffect(() => {
+  const params = route?.params;
+
+  if (!params) return;
+
+  if (params.newBill) {
     navigation.navigate('Billing', { newBill: true });
+
+    navigation.setParams({
+      newBill: undefined,
+    });
+
+    return;
   }
 
-  if (route.params?.barcode) {
-    handleBarcodeScanned(
-      route.params.barcode,
-      route.params.scannedProduct,
-      route.params.externalProductMetadata
-    );
+  const barcode = params.barcode;
+
+  if (!barcode) return;
+
+  if (barcodeHandledRef.current === barcode) {
+    return;
   }
+
+  barcodeHandledRef.current = barcode;
+
+  handleBarcodeScanned(
+    barcode,
+    params.scannedProduct ?? null,
+    params.externalProductMetadata
+  );
+
+  navigation.setParams({
+    barcode: undefined,
+    scannedProduct: undefined,
+    externalProductMetadata: undefined,
+  });
 }, [
+  route?.params,
+  navigation,
+  handleBarcodeScanned,
+]);
+     [
   route.params?.newBill,
   route.params?.barcode,
   route.params?.scannedProduct,
   route.params?.externalProductMetadata,
   handleBarcodeScanned,
 ]);
-
-
-
-
-  async function loadData() {
-    if (!business) return;
-    try {
-      const [prods, cats, supps] = await Promise.all([
-        getProducts(business.id),
-        getCategories(business.id),
-        getSuppliers(business.id),
-      ]);
-      setProducts(prods);
-      setCategories(cats);
-      setSuppliers(supps);
-    } catch (e) {
-      console.error('Products load error', e);
-    } finally {
-      setLoading(false);
-    }
+const loadData = useCallback(async () => {
+  if (!business?.id) {
+    setProducts([]);
+    setCategories([]);
+    setSuppliers([]);
+    setLoading(false);
+    return;
   }
 
-  useFocusEffect(
-    useCallback(() => {
-      loadData();
-    }, [business])
-  );
+  if (loadingRef.current) return;
+
+  loadingRef.current = true;
+  setLoading(true);
+  setError(null);
+
+  try {
+    const [prods, cats, supps] = await Promise.all([
+      getProducts(business.id),
+      getCategories(business.id),
+      getSuppliers(business.id),
+    ]);
+
+    setProducts(Array.isArray(prods) ? prods : []);
+    setCategories(Array.isArray(cats) ? cats : []);
+    setSuppliers(Array.isArray(supps) ? supps : []);
+  } catch (e) {
+    console.error('Products load error:', e);
+
+    setError(
+      e instanceof Error
+        ? e.message
+        : 'Unable to load products. Please try again.'
+    );
+  } finally {
+    loadingRef.current = false;
+    setLoading(false);
+  }
+}, [business?.id]);
+
+
+
+
 
   const debouncedSearch = useCallback(
     debounce(async (query: string) => {
