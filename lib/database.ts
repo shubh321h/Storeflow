@@ -1,63 +1,848 @@
-import { User, Business, Category, Supplier, Product, StockMovement, Customer, Sale, SaleItem, Purchase, PurchaseItem, Payment, Expense, CustomerLedger, SupplierLedger, BusinessSettings, BackupRecord, DashboardStats, RecentTransaction, UnifiedTransaction, SalesReport, ProductReport, CustomerReport, ExpenseReport } from './types';
+import {
+  User,
+  Business,
+  Category,
+  Supplier,
+  Product,
+  StockMovement,
+  Customer,
+  Sale,
+  SaleItem,
+  Purchase,
+  PurchaseItem,
+  Payment,
+  Expense,
+  CustomerLedger,
+  SupplierLedger,
+  BusinessSettings,
+  BackupRecord,
+  DashboardStats,
+  RecentTransaction,
+  UnifiedTransaction,
+  SalesReport,
+  ProductReport,
+  CustomerReport,
+  ExpenseReport
+} from './types';
+
 import { generateId, getStartOfDay, getEndOfDay } from './utils';
 import { supabase } from '../supabase';
 
 type Row = Record<string, any>;
+
 const list = (v: unknown): Row[] => {
   if (Array.isArray(v)) return v as Row[];
   if (v && typeof v === 'object') return [v as Row];
   return [];
 };
-const n = (v: unknown) => Number.isFinite(Number(v)) ? Number(v) : 0;
-const s = (v: unknown, fallback = '') => v == null ? fallback : String(v);
-const o = (v: unknown) => v == null || v === '' ? undefined : String(v);
-const check = (error: any) => { if (error) throw error; };
 
-function mapBusiness(r: Row): Business { return { id: s(r.id), ownerName: s(r.owner_name), storeName: s(r.store_name), mobileNumber: s(r.mobile_number), address: o(r.address), gstin: o(r.gstin), businessType: s(r.business_type), currency: s(r.currency, 'INR'), defaultTaxRate: n(r.default_tax_rate), invoicePrefix: s(r.invoice_prefix, 'INV'), invoiceNextNumber: n(r.invoice_next_number) || 1, thankYouMessage: s(r.thank_you_message), createdAt: s(r.created_at), updatedAt: s(r.updated_at) }; }
-function mapSupplier(r: Row): Supplier { return { id: s(r.id), businessId: s(r.business_id), name: s(r.name), mobile: o(r.mobile), email: o(r.email), address: o(r.address), gstin: o(r.gstin), openingBalance: n(r.opening_balance), balance: n(r.balance), notes: o(r.notes), createdAt: s(r.created_at), updatedAt: s(r.updated_at) }; }
-function mapCustomer(r: Row): Customer { return { id: s(r.id), businessId: s(r.business_id), name: s(r.name), mobile: o(r.mobile), email: o(r.email), address: o(r.address), openingBalance: n(r.opening_balance), balance: n(r.balance), creditLimit: r.credit_limit == null ? undefined : n(r.credit_limit), notes: o(r.notes), createdAt: s(r.created_at), updatedAt: s(r.updated_at) }; }
-function mapProduct(r: Row): Product { return { id: s(r.id), businessId: s(r.business_id), name: s(r.name), barcode: o(r.barcode), sku: o(r.sku), categoryId: o(r.category_id), brand: o(r.brand), purchasePrice: n(r.purchase_price), sellingPrice: n(r.selling_price), mrp: r.mrp == null ? undefined : n(r.mrp), taxRate: n(r.tax_rate), unit: s(r.unit, 'Piece'), currentStock: n(r.current_stock), minStockLevel: n(r.min_stock_level), supplierId: o(r.supplier_id), imageUri: o(r.image_uri), expiryDate: o(r.expiry_date), batchNumber: o(r.batch_number), notes: o(r.notes), isArchived: r.is_archived === true || r.is_archived === 1 ? 1 : 0, createdAt: s(r.created_at), updatedAt: s(r.updated_at) }; }
-function mapSale(r: Row): Sale { return { id: s(r.id), businessId: s(r.business_id), invoiceNumber: s(r.invoice_number), customerId: o(r.customer_id), customerName: o(r.customer_name), subtotal: n(r.subtotal), discount: n(r.discount), taxAmount: n(r.tax_amount), total: n(r.total), paid: n(r.paid), due: n(r.due), paymentMethod: r.payment_method, status: r.status, notes: o(r.notes), createdAt: s(r.created_at) }; }
-function mapPurchase(r: Row): Purchase { return { id: s(r.id), businessId: s(r.business_id), invoiceNumber: s(r.invoice_number), supplierId: s(r.supplier_id), supplierName: s(r.supplier_name), subtotal: n(r.subtotal), discount: n(r.discount), taxAmount: n(r.tax_amount), total: n(r.total), paid: n(r.paid), due: n(r.due), paymentMethod: r.payment_method, status: r.status, notes: o(r.notes), supplierInvoiceNumber: o(r.supplier_invoice_number), createdAt: s(r.created_at) }; }
-function mapLedger(r: Row): CustomerLedger { return { id: s(r.id), businessId: s(r.business_id), customerId: s(r.customer_id), customerName: s(r.customer_name), date: s(r.date), type: r.type, description: s(r.description), referenceId: o(r.reference_id), debit: n(r.debit), credit: n(r.credit), balance: n(r.balance), createdAt: s(r.created_at) }; }
-function mapSLedger(r: Row): SupplierLedger { return { id: s(r.id), businessId: s(r.business_id), supplierId: s(r.supplier_id), supplierName: s(r.supplier_name), date: s(r.date), type: r.type, description: s(r.description), referenceId: o(r.reference_id), debit: n(r.debit), credit: n(r.credit), balance: n(r.balance), createdAt: s(r.created_at) }; }
-function mapPayment(r: Row): Payment { return { id: s(r.id), businessId: s(r.business_id), customerId: o(r.customer_id), supplierId: o(r.supplier_id), saleId: o(r.sale_id), purchaseId: o(r.purchase_id), amount: n(r.amount), method: r.method, notes: o(r.notes), createdAt: s(r.created_at) }; }
-function mapExpense(r: Row): Expense { return { id: s(r.id), businessId: s(r.business_id), title: s(r.title), category: s(r.category), amount: n(r.amount), paymentMethod: r.payment_method, description: o(r.description), createdAt: s(r.created_at) }; }
-function mapItem(r: Row): SaleItem { return { id: s(r.id), saleId: s(r.sale_id), productId: s(r.product_id), productName: s(r.product_name), quantity: n(r.quantity), price: n(r.price), discount: n(r.discount), taxRate: n(r.tax_rate), taxAmount: n(r.tax_amount), total: n(r.total) }; }
+const n = (v: unknown) =>
+  Number.isFinite(Number(v)) ? Number(v) : 0;
 
-async function stockProducts(businessId: string, includeArchived = false): Promise<Product[]> { let q = supabase.from('products').select('*, inventory(current_stock)').eq('business_id', businessId).order('name'); if (!includeArchived) q = q.eq('is_archived', false); const { data, error } = await q; check(error); return list(data).map(r => mapProduct({ ...r, current_stock: list(r.inventory)[0]?.current_stock })); }
-async function setBalance(table: 'customers' | 'suppliers', id: string, value: number) { const { error } = await supabase.from(table).update({ balance: value, updated_at: new Date().toISOString() }).eq('id', id); check(error); }
-async function insertLedger(entry: CustomerLedger | SupplierLedger, table: 'customer_ledger' | 'supplier_ledger') { const idColumn = table === 'customer_ledger' ? 'customer_id' : 'supplier_id'; const id = table === 'customer_ledger' ? (entry as CustomerLedger).customerId : (entry as SupplierLedger).supplierId; const { error } = await supabase.from(table).insert({ id: entry.id, business_id: entry.businessId, [idColumn]: id, date: entry.date, type: entry.type, description: entry.description, reference_id: entry.referenceId || null, debit: entry.debit, credit: entry.credit, balance: entry.balance, created_at: entry.createdAt }); check(error); }
+const s = (v: unknown, fallback = '') =>
+  v == null ? fallback : String(v);
 
-export async function createUser(value: User): Promise<void> { const { data } = await supabase.auth.getUser(); if (!data.user || data.user.id !== value.id) throw new Error('Signed-in user does not match profile.'); const { error } = await supabase.from('profiles').upsert({ id: value.id, name: value.name, email: value.email, created_at: value.createdAt, updated_at: value.updatedAt }); check(error); }
-export async function getUserByEmail(email: string): Promise<User | null> { const { data } = await supabase.auth.getUser(); if (!data.user || data.user.email?.toLowerCase() !== email.toLowerCase()) return null; return getUserById(data.user.id); }
-export async function getUserById(id: string): Promise<User | null> { const { data: auth } = await supabase.auth.getUser(); if (auth.user?.id !== id) return null; const { data, error } = await supabase.from('profiles').select('*').eq('id', id).maybeSingle(); check(error); return data ? { id: s(data.id), name: s(data.name), email: s(data.email), createdAt: s(data.created_at), updatedAt: s(data.updated_at) } : null; }
+const o = (v: unknown) =>
+  v == null || v === '' ? undefined : String(v);
 
-export async function createBusiness(v: Business): Promise<void> { const { data: auth } = await supabase.auth.getUser(); if (!auth.user) throw new Error('You must be signed in to create a business.'); const { error } = await supabase.rpc('create_business', { payload: { id: v.id, ownerName: v.ownerName, storeName: v.storeName, mobileNumber: v.mobileNumber, address: v.address || null, gstin: v.gstin || null, businessType: v.businessType, currency: v.currency, defaultTaxRate: v.defaultTaxRate, invoicePrefix: v.invoicePrefix, invoiceNextNumber: v.invoiceNextNumber, thankYouMessage: v.thankYouMessage, createdAt: v.createdAt, updatedAt: v.updatedAt } }); check(error); }
-export async function getBusinessById(id: string) { const { data, error } = await supabase.from('businesses').select('*').eq('id', id).maybeSingle(); check(error); return data ? mapBusiness(data) : null; }
-export async function getBusinessesForUser(userId: string): Promise<Business[]> { const { data, error } = await supabase.from('business_members').select('businesses(*)').eq('user_id', userId); check(error); return list(data).flatMap(r => r.businesses && !Array.isArray(r.businesses) ? [mapBusiness(r.businesses)] : list(r.businesses).map(mapBusiness)); }
-export async function updateBusiness(v: Business): Promise<void> { const { error } = await supabase.from('businesses').update({ owner_name: v.ownerName, store_name: v.storeName, mobile_number: v.mobileNumber, address: v.address || null, gstin: v.gstin || null, business_type: v.businessType, currency: v.currency, default_tax_rate: v.defaultTaxRate, invoice_prefix: v.invoicePrefix, invoice_next_number: v.invoiceNextNumber, thank_you_message: v.thankYouMessage, updated_at: v.updatedAt }).eq('id', v.id); check(error); }
-export async function incrementInvoiceNumber(businessId: string): Promise<void> { const { error } = await supabase.rpc('increment_invoice_number', { target_business_id: businessId }); check(error); }
-export async function createUserBusiness(v: { id: string; userId: string; businessId: string; role: string; createdAt: string }): Promise<void> { const { error } = await supabase.from('business_members').insert({ id: v.id, user_id: v.userId, business_id: v.businessId, role: v.role, created_at: v.createdAt }); check(error); }
+const check = (error: any) => {
+  if (error) throw error;
+};
 
-export async function createCategory(v: Category): Promise<void> { const { error } = await supabase.from('categories').insert({ id: v.id, business_id: v.businessId, name: v.name, created_at: v.createdAt }); check(error); }
-export async function getCategories(businessId: string): Promise<Category[]> { const { data, error } = await supabase.from('categories').select('*').eq('business_id', businessId).order('name'); check(error); return list(data).map(r => ({ id: s(r.id), businessId: s(r.business_id), name: s(r.name), createdAt: s(r.created_at) })); }
-export async function deleteCategory(id: string): Promise<void> { const { error } = await supabase.from('categories').delete().eq('id', id); check(error); }
-export async function createSupplier(v: Supplier): Promise<void> { const { error } = await supabase.from('suppliers').insert({ id: v.id, business_id: v.businessId, name: v.name, mobile: v.mobile || null, email: v.email || null, address: v.address || null, gstin: v.gstin || null, opening_balance: v.openingBalance, balance: v.balance, notes: v.notes || null, created_at: v.createdAt, updated_at: v.updatedAt }); check(error); if (v.openingBalance) await createSupplierLedger({ id: generateId(), businessId: v.businessId, supplierId: v.id, supplierName: v.name, date: v.createdAt, type: 'opening_balance', description: 'Opening Balance', debit: Math.max(v.openingBalance, 0), credit: Math.max(-v.openingBalance, 0), balance: v.openingBalance, createdAt: v.createdAt }); }
-export async function updateSupplier(v: Supplier): Promise<void> { const { error } = await supabase.from('suppliers').update({ name: v.name, mobile: v.mobile || null, email: v.email || null, address: v.address || null, gstin: v.gstin || null, balance: v.balance, notes: v.notes || null, updated_at: v.updatedAt }).eq('id', v.id); check(error); }
-export async function getSuppliers(businessId: string): Promise<Supplier[]> { const { data, error } = await supabase.from('suppliers').select('*').eq('business_id', businessId).order('name'); check(error); return list(data).map(mapSupplier); }
-export async function getSupplierById(id: string): Promise<Supplier | null> { const { data, error } = await supabase.from('suppliers').select('*').eq('id', id).maybeSingle(); check(error); return data ? mapSupplier(data) : null; }
-export async function deleteSupplier(id: string): Promise<void> { const { error } = await supabase.from('suppliers').delete().eq('id', id); check(error); }
-export async function updateSupplierBalance(id: string, value: number): Promise<void> { await setBalance('suppliers', id, value); }
+/**
+ * Supabase can return a one-to-one relationship either as
+ * an object or as an array depending on the relationship shape.
+ * This helper safely reads inventory.current_stock in both cases.
+ */
+const getInventoryStock = (inventory: unknown): number => {
+  if (Array.isArray(inventory)) {
+    return n((inventory[0] as Row | undefined)?.current_stock);
+  }
 
-export async function createProduct(v: Product): Promise<void> { const { error } = await supabase.from('products').insert({ id: v.id, business_id: v.businessId, name: v.name, barcode: v.barcode || null, sku: v.sku || null, category_id: v.categoryId || null, brand: v.brand || null, purchase_price: v.purchasePrice, selling_price: v.sellingPrice, mrp: v.mrp ?? null, tax_rate: v.taxRate, unit: v.unit, min_stock_level: v.minStockLevel, supplier_id: v.supplierId || null, image_uri: v.imageUri || null, expiry_date: v.expiryDate || null, batch_number: v.batchNumber || null, notes: v.notes || null, is_archived: v.isArchived === 1, created_at: v.createdAt, updated_at: v.updatedAt }); check(error); const result = await supabase.from('inventory').insert({ product_id: v.id, business_id: v.businessId, current_stock: v.currentStock }); check(result.error); }
-export async function updateProduct(v: Product): Promise<void> { const { error } = await supabase.from('products').update({ name: v.name, barcode: v.barcode || null, sku: v.sku || null, category_id: v.categoryId || null, brand: v.brand || null, purchase_price: v.purchasePrice, selling_price: v.sellingPrice, mrp: v.mrp ?? null, tax_rate: v.taxRate, unit: v.unit, min_stock_level: v.minStockLevel, supplier_id: v.supplierId || null, image_uri: v.imageUri || null, expiry_date: v.expiryDate || null, batch_number: v.batchNumber || null, notes: v.notes || null, is_archived: v.isArchived === 1, updated_at: v.updatedAt }).eq('id', v.id).eq('business_id', v.businessId); check(error); await updateProductStock(v.id, v.businessId, v.currentStock); }
-export async function getProducts(businessId: string, includeArchived = false): Promise<Product[]> { return stockProducts(businessId, includeArchived); }
-export async function searchProducts(businessId: string, query: string): Promise<Product[]> { const term = query.toLowerCase(); return (await stockProducts(businessId)).filter(p => [p.name, p.barcode, p.sku].some(v => v?.toLowerCase().includes(term))).slice(0, 50); }
-export async function getProductById(id: string): Promise<Product | null> { const { data, error } = await supabase.from('products').select('*, inventory(current_stock)').eq('id', id).maybeSingle(); check(error); return data ? mapProduct({ ...data, current_stock: list(data.inventory)[0]?.current_stock }) : null; }
-export async function getProductByBarcode(businessId: string, barcode: string): Promise<Product | null> { return (await stockProducts(businessId)).find(p => p.barcode === barcode) || null; }
-export async function getLowStockProducts(businessId: string): Promise<Product[]> { return (await stockProducts(businessId)).filter(p => p.currentStock <= p.minStockLevel && p.currentStock > 0); }
-export async function getOutOfStockProducts(businessId: string): Promise<Product[]> { return (await stockProducts(businessId)).filter(p => p.currentStock <= 0); }
+  if (inventory && typeof inventory === 'object') {
+    return n((inventory as Row).current_stock);
+  }
+
+  return 0;
+};
+
+function mapBusiness(r: Row): Business {
+  return {
+    id: s(r.id),
+    ownerName: s(r.owner_name),
+    storeName: s(r.store_name),
+    mobileNumber: s(r.mobile_number),
+    address: o(r.address),
+    gstin: o(r.gstin),
+    businessType: s(r.business_type),
+    currency: s(r.currency, 'INR'),
+    defaultTaxRate: n(r.default_tax_rate),
+    invoicePrefix: s(r.invoice_prefix, 'INV'),
+    invoiceNextNumber: n(r.invoice_next_number) || 1,
+    thankYouMessage: s(r.thank_you_message),
+    createdAt: s(r.created_at),
+    updatedAt: s(r.updated_at)
+  };
+}
+
+function mapSupplier(r: Row): Supplier {
+  return {
+    id: s(r.id),
+    businessId: s(r.business_id),
+    name: s(r.name),
+    mobile: o(r.mobile),
+    email: o(r.email),
+    address: o(r.address),
+    gstin: o(r.gstin),
+    openingBalance: n(r.opening_balance),
+    balance: n(r.balance),
+    notes: o(r.notes),
+    createdAt: s(r.created_at),
+    updatedAt: s(r.updated_at)
+  };
+}
+
+function mapCustomer(r: Row): Customer {
+  return {
+    id: s(r.id),
+    businessId: s(r.business_id),
+    name: s(r.name),
+    mobile: o(r.mobile),
+    email: o(r.email),
+    address: o(r.address),
+    openingBalance: n(r.opening_balance),
+    balance: n(r.balance),
+    creditLimit:
+      r.credit_limit == null ? undefined : n(r.credit_limit),
+    notes: o(r.notes),
+    createdAt: s(r.created_at),
+    updatedAt: s(r.updated_at)
+  };
+}
+
+function mapProduct(r: Row): Product {
+  return {
+    id: s(r.id),
+    businessId: s(r.business_id),
+    name: s(r.name),
+    barcode: o(r.barcode),
+    sku: o(r.sku),
+    categoryId: o(r.category_id),
+    brand: o(r.brand),
+    purchasePrice: n(r.purchase_price),
+    sellingPrice: n(r.selling_price),
+    mrp: r.mrp == null ? undefined : n(r.mrp),
+    taxRate: n(r.tax_rate),
+    unit: s(r.unit, 'Piece'),
+    currentStock: n(r.current_stock),
+    minStockLevel: n(r.min_stock_level),
+    supplierId: o(r.supplier_id),
+    imageUri: o(r.image_uri),
+    expiryDate: o(r.expiry_date),
+    batchNumber: o(r.batch_number),
+    notes: o(r.notes),
+    isArchived:
+      r.is_archived === true || r.is_archived === 1 ? 1 : 0,
+    createdAt: s(r.created_at),
+    updatedAt: s(r.updated_at)
+  };
+}
+
+function mapSale(r: Row): Sale {
+  return {
+    id: s(r.id),
+    businessId: s(r.business_id),
+    invoiceNumber: s(r.invoice_number),
+    customerId: o(r.customer_id),
+    customerName: o(r.customer_name),
+    subtotal: n(r.subtotal),
+    discount: n(r.discount),
+    taxAmount: n(r.tax_amount),
+    total: n(r.total),
+    paid: n(r.paid),
+    due: n(r.due),
+    paymentMethod: r.payment_method,
+    status: r.status,
+    notes: o(r.notes),
+    createdAt: s(r.created_at)
+  };
+}
+
+function mapPurchase(r: Row): Purchase {
+  return {
+    id: s(r.id),
+    businessId: s(r.business_id),
+    invoiceNumber: s(r.invoice_number),
+    supplierId: s(r.supplier_id),
+    supplierName: s(r.supplier_name),
+    subtotal: n(r.subtotal),
+    discount: n(r.discount),
+    taxAmount: n(r.tax_amount),
+    total: n(r.total),
+    paid: n(r.paid),
+    due: n(r.due),
+    paymentMethod: r.payment_method,
+    status: r.status,
+    notes: o(r.notes),
+    supplierInvoiceNumber: o(r.supplier_invoice_number),
+    createdAt: s(r.created_at)
+  };
+}
+
+function mapLedger(r: Row): CustomerLedger {
+  return {
+    id: s(r.id),
+    businessId: s(r.business_id),
+    customerId: s(r.customer_id),
+    customerName: s(r.customer_name),
+    date: s(r.date),
+    type: r.type,
+    description: s(r.description),
+    referenceId: o(r.reference_id),
+    debit: n(r.debit),
+    credit: n(r.credit),
+    balance: n(r.balance),
+    createdAt: s(r.created_at)
+  };
+}
+
+function mapSLedger(r: Row): SupplierLedger {
+  return {
+    id: s(r.id),
+    businessId: s(r.business_id),
+    supplierId: s(r.supplier_id),
+    supplierName: s(r.supplier_name),
+    date: s(r.date),
+    type: r.type,
+    description: s(r.description),
+    referenceId: o(r.reference_id),
+    debit: n(r.debit),
+    credit: n(r.credit),
+    balance: n(r.balance),
+    createdAt: s(r.created_at)
+  };
+}
+
+function mapPayment(r: Row): Payment {
+  return {
+    id: s(r.id),
+    businessId: s(r.business_id),
+    customerId: o(r.customer_id),
+    supplierId: o(r.supplier_id),
+    saleId: o(r.sale_id),
+    purchaseId: o(r.purchase_id),
+    amount: n(r.amount),
+    method: r.method,
+    notes: o(r.notes),
+    createdAt: s(r.created_at)
+  };
+}
+
+function mapExpense(r: Row): Expense {
+  return {
+    id: s(r.id),
+    businessId: s(r.business_id),
+    title: s(r.title),
+    category: s(r.category),
+    amount: n(r.amount),
+    paymentMethod: r.payment_method,
+    description: o(r.description),
+    createdAt: s(r.created_at)
+  };
+}
+
+function mapItem(r: Row): SaleItem {
+  return {
+    id: s(r.id),
+    saleId: s(r.sale_id),
+    productId: s(r.product_id),
+    productName: s(r.product_name),
+    quantity: n(r.quantity),
+    price: n(r.price),
+    discount: n(r.discount),
+    taxRate: n(r.tax_rate),
+    taxAmount: n(r.tax_amount),
+    total: n(r.total)
+  };
+}
+
+/**
+ * Load products together with authoritative stock from inventory.
+ *
+ * IMPORTANT:
+ * products.current_stock does NOT exist in the Supabase schema.
+ * inventory.current_stock is the source of truth.
+ */
+async function stockProducts(
+  businessId: string,
+  includeArchived = false
+): Promise<Product[]> {
+  let q = supabase
+    .from('products')
+    .select('*, inventory(current_stock)')
+    .eq('business_id', businessId)
+    .order('name');
+
+  if (!includeArchived) {
+    q = q.eq('is_archived', false);
+  }
+
+  const { data, error } = await q;
+
+  check(error);
+
+  return list(data).map((r) =>
+    mapProduct({
+      ...r,
+      current_stock: getInventoryStock(r.inventory)
+    })
+  );
+}
+
+async function setBalance(
+  table: 'customers' | 'suppliers',
+  id: string,
+  value: number
+) {
+  const { error } = await supabase
+    .from(table)
+    .update({
+      balance: value,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', id);
+
+  check(error);
+}
+
+async function insertLedger(
+  entry: CustomerLedger | SupplierLedger,
+  table: 'customer_ledger' | 'supplier_ledger'
+) {
+  const idColumn =
+    table === 'customer_ledger'
+      ? 'customer_id'
+      : 'supplier_id';
+
+  const id =
+    table === 'customer_ledger'
+      ? (entry as CustomerLedger).customerId
+      : (entry as SupplierLedger).supplierId;
+
+  const { error } = await supabase
+    .from(table)
+    .insert({
+      id: entry.id,
+      business_id: entry.businessId,
+      [idColumn]: id,
+      date: entry.date,
+      type: entry.type,
+      description: entry.description,
+      reference_id: entry.referenceId || null,
+      debit: entry.debit,
+      credit: entry.credit,
+      balance: entry.balance,
+      created_at: entry.createdAt
+    });
+
+  check(error);
+}
+
+export async function createUser(value: User): Promise<void> {
+  const { data } = await supabase.auth.getUser();
+
+  if (!data.user || data.user.id !== value.id) {
+    throw new Error('Signed-in user does not match profile.');
+  }
+
+  const { error } = await supabase
+    .from('profiles')
+    .upsert({
+      id: value.id,
+      name: value.name,
+      email: value.email,
+      created_at: value.createdAt,
+      updated_at: value.updatedAt
+    });
+
+  check(error);
+}
+
+export async function getUserByEmail(
+  email: string
+): Promise<User | null> {
+  const { data } = await supabase.auth.getUser();
+
+  if (
+    !data.user ||
+    data.user.email?.toLowerCase() !== email.toLowerCase()
+  ) {
+    return null;
+  }
+
+  return getUserById(data.user.id);
+}
+
+export async function getUserById(
+  id: string
+): Promise<User | null> {
+  const { data: auth } = await supabase.auth.getUser();
+
+  if (auth.user?.id !== id) return null;
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+
+  check(error);
+
+  return data
+    ? {
+        id: s(data.id),
+        name: s(data.name),
+        email: s(data.email),
+        createdAt: s(data.created_at),
+        updatedAt: s(data.updated_at)
+      }
+    : null;
+}
+
+export async function createBusiness(
+  v: Business
+): Promise<void> {
+  const { data: auth } = await supabase.auth.getUser();
+
+  if (!auth.user) {
+    throw new Error(
+      'You must be signed in to create a business.'
+    );
+  }
+
+  const { error } = await supabase.rpc(
+    'create_business',
+    {
+      payload: {
+        id: v.id,
+        ownerName: v.ownerName,
+        storeName: v.storeName,
+        mobileNumber: v.mobileNumber,
+        address: v.address || null,
+        gstin: v.gstin || null,
+        businessType: v.businessType,
+        currency: v.currency,
+        defaultTaxRate: v.defaultTaxRate,
+        invoicePrefix: v.invoicePrefix,
+        invoiceNextNumber: v.invoiceNextNumber,
+        thankYouMessage: v.thankYouMessage,
+        createdAt: v.createdAt,
+        updatedAt: v.updatedAt
+      }
+    }
+  );
+
+  check(error);
+}
+
+export async function getBusinessById(
+  id: string
+) {
+  const { data, error } = await supabase
+    .from('businesses')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+
+  check(error);
+
+  return data ? mapBusiness(data) : null;
+}
+
+export async function getBusinessesForUser(
+  userId: string
+): Promise<Business[]> {
+  const { data, error } = await supabase
+    .from('business_members')
+    .select('businesses(*)')
+    .eq('user_id', userId);
+
+  check(error);
+
+  return list(data).flatMap((r) =>
+    r.businesses && !Array.isArray(r.businesses)
+      ? [mapBusiness(r.businesses)]
+      : list(r.businesses).map(mapBusiness)
+  );
+}
+
+export async function updateBusiness(
+  v: Business
+): Promise<void> {
+  const { error } = await supabase
+    .from('businesses')
+    .update({
+      owner_name: v.ownerName,
+      store_name: v.storeName,
+      mobile_number: v.mobileNumber,
+      address: v.address || null,
+      gstin: v.gstin || null,
+      business_type: v.businessType,
+      currency: v.currency,
+      default_tax_rate: v.defaultTaxRate,
+      invoice_prefix: v.invoicePrefix,
+      invoice_next_number: v.invoiceNextNumber,
+      thank_you_message: v.thankYouMessage,
+      updated_at: v.updatedAt
+    })
+    .eq('id', v.id);
+
+  check(error);
+}
+
+export async function incrementInvoiceNumber(
+  businessId: string
+): Promise<void> {
+  const { error } = await supabase.rpc(
+    'increment_invoice_number',
+    {
+      target_business_id: businessId
+    }
+  );
+
+  check(error);
+}
+
+export async function createUserBusiness(
+  v: {
+    id: string;
+    userId: string;
+    businessId: string;
+    role: string;
+    createdAt: string;
+  }
+): Promise<void> {
+  const { error } = await supabase
+    .from('business_members')
+    .insert({
+      id: v.id,
+      user_id: v.userId,
+      business_id: v.businessId,
+      role: v.role,
+      created_at: v.createdAt
+    });
+
+  check(error);
+}
+
+export async function createCategory(
+  v: Category
+): Promise<void> {
+  const { error } = await supabase
+    .from('categories')
+    .insert({
+      id: v.id,
+      business_id: v.businessId,
+      name: v.name,
+      created_at: v.createdAt
+    });
+
+  check(error);
+}
+
+export async function getCategories(
+  businessId: string
+): Promise<Category[]> {
+  const { data, error } = await supabase
+    .from('categories')
+    .select('*')
+    .eq('business_id', businessId)
+    .order('name');
+
+  check(error);
+
+  return list(data).map((r) => ({
+    id: s(r.id),
+    businessId: s(r.business_id),
+    name: s(r.name),
+    createdAt: s(r.created_at)
+  }));
+}
+
+export async function deleteCategory(
+  id: string
+): Promise<void> {
+  const { error } = await supabase
+    .from('categories')
+    .delete()
+    .eq('id', id);
+
+  check(error);
+}
+
+export async function createSupplier(
+  v: Supplier
+): Promise<void> {
+  const { error } = await supabase
+    .from('suppliers')
+    .insert({
+      id: v.id,
+      business_id: v.businessId,
+      name: v.name,
+      mobile: v.mobile || null,
+      email: v.email || null,
+      address: v.address || null,
+      gstin: v.gstin || null,
+      opening_balance: v.openingBalance,
+      balance: v.balance,
+      notes: v.notes || null,
+      created_at: v.createdAt,
+      updated_at: v.updatedAt
+    });
+
+  check(error);
+
+  if (v.openingBalance) {
+    await createSupplierLedger({
+      id: generateId(),
+      businessId: v.businessId,
+      supplierId: v.id,
+      supplierName: v.name,
+      date: v.createdAt,
+      type: 'opening_balance',
+      description: 'Opening Balance',
+      debit: Math.max(v.openingBalance, 0),
+      credit: Math.max(-v.openingBalance, 0),
+      balance: v.openingBalance,
+      createdAt: v.createdAt
+    });
+  }
+}
+
+export async function updateSupplier(
+  v: Supplier
+): Promise<void> {
+  const { error } = await supabase
+    .from('suppliers')
+    .update({
+      name: v.name,
+      mobile: v.mobile || null,
+      email: v.email || null,
+      address: v.address || null,
+      gstin: v.gstin || null,
+      balance: v.balance,
+      notes: v.notes || null,
+      updated_at: v.updatedAt
+    })
+    .eq('id', v.id);
+
+  check(error);
+}
+
+export async function getSuppliers(
+  businessId: string
+): Promise<Supplier[]> {
+  const { data, error } = await supabase
+    .from('suppliers')
+    .select('*')
+    .eq('business_id', businessId)
+    .order('name');
+
+  check(error);
+
+  return list(data).map(mapSupplier);
+}
+
+export async function getSupplierById(
+  id: string
+): Promise<Supplier | null> {
+  const { data, error } = await supabase
+    .from('suppliers')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+
+  check(error);
+
+  return data ? mapSupplier(data) : null;
+}
+
+export async function deleteSupplier(
+  id: string
+): Promise<void> {
+  const { error } = await supabase
+    .from('suppliers')
+    .delete()
+    .eq('id', id);
+
+  check(error);
+}
+
+export async function updateSupplierBalance(
+  id: string,
+  value: number
+): Promise<void> {
+  await setBalance('suppliers', id, value);
+}
+
+/* =========================
+   PRODUCTS / INVENTORY
+   ========================= */
+
+export async function createProduct(
+  v: Product
+): Promise<void> {
+  const { error } = await supabase
+    .from('products')
+    .insert({
+      id: v.id,
+      business_id: v.businessId,
+      name: v.name,
+      barcode: v.barcode || null,
+      sku: v.sku || null,
+      category_id: v.categoryId || null,
+      brand: v.brand || null,
+      purchase_price: v.purchasePrice,
+      selling_price: v.sellingPrice,
+      mrp: v.mrp ?? null,
+      tax_rate: v.taxRate,
+      unit: v.unit,
+      min_stock_level: v.minStockLevel,
+      supplier_id: v.supplierId || null,
+      image_uri: v.imageUri || null,
+      expiry_date: v.expiryDate || null,
+      batch_number: v.batchNumber || null,
+      notes: v.notes || null,
+      is_archived: v.isArchived === 1,
+      created_at: v.createdAt,
+      updated_at: v.updatedAt
+    });
+
+  check(error);
+
+  const result = await supabase
+    .from('inventory')
+    .insert({
+      product_id: v.id,
+      business_id: v.businessId,
+      current_stock: v.currentStock
+    });
+
+  check(result.error);
+}
+
+export async function updateProduct(
+  v: Product
+): Promise<void> {
+  const { error } = await supabase
+    .from('products')
+    .update({
+      name: v.name,
+      barcode: v.barcode || null,
+      sku: v.sku || null,
+      category_id: v.categoryId || null,
+      brand: v.brand || null,
+      purchase_price: v.purchasePrice,
+      selling_price: v.sellingPrice,
+      mrp: v.mrp ?? null,
+      tax_rate: v.taxRate,
+      unit: v.unit,
+      min_stock_level: v.minStockLevel,
+      supplier_id: v.supplierId || null,
+      image_uri: v.imageUri || null,
+      expiry_date: v.expiryDate || null,
+      batch_number: v.batchNumber || null,
+      notes: v.notes || null,
+      is_archived: v.isArchived === 1,
+      updated_at: v.updatedAt
+    })
+    .eq('id', v.id)
+    .eq('business_id', v.businessId);
+
+  check(error);
+
+  await updateProductStock(
+    v.id,
+    v.businessId,
+    v.currentStock
+  );
+}
+
+export async function getProducts(
+  businessId: string,
+  includeArchived = false
+): Promise<Product[]> {
+  return stockProducts(businessId, includeArchived);
+}
+
+export async function searchProducts(
+  businessId: string,
+  query: string
+): Promise<Product[]> {
+  const term = query.toLowerCase();
+
+  return (await stockProducts(businessId))
+    .filter((p) =>
+      [p.name, p.barcode, p.sku].some((v) =>
+        v?.toLowerCase().includes(term)
+      )
+    )
+    .slice(0, 50);
+}
+
+export async function getProductById(
+  id: string
+): Promise<Product | null> {
+  const { data, error } = await supabase
+    .from('products')
+    .select('*, inventory(current_stock)')
+    .eq('id', id)
+    .maybeSingle();
+
+  check(error);
+
+  if (!data) {
+    return null;
+  }
+
+  return mapProduct({
+    ...data,
+    current_stock: getInventoryStock(data.inventory)
+  });
+}
+
+/**
+ * Barcode functionality preserved.
+ */
+export async function getProductByBarcode(
+  businessId: string,
+  barcode: string
+): Promise<Product | null> {
+  return (
+    (await stockProducts(businessId)).find(
+      (p) => p.barcode === barcode
+    ) || null
+  );
+}
+
+export async function getLowStockProducts(
+  businessId: string
+): Promise<Product[]> {
+  return (await stockProducts(businessId)).filter(
+    (p) =>
+      p.currentStock <= p.minStockLevel &&
+      p.currentStock > 0
+  );
+}
+
+export async function getOutOfStockProducts(
+  businessId: string
+): Promise<Product[]> {
+  return (await stockProducts(businessId)).filter(
+    (p) => p.currentStock <= 0
+  );
+}
+
 export async function updateProductStock(
   id: string,
   businessId: string,
@@ -70,89 +855,46 @@ export async function updateProductStock(
         product_id: id,
         business_id: businessId,
         current_stock: value,
-        updated_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       },
       {
-        onConflict: 'product_id',
+        onConflict: 'product_id'
       }
     );
 
   check(error);
 }
 
-export async function createStockMovement(v: StockMovement): Promise<void> {
-  const { error } = await supabase.from('stock_movements').insert({
-    id: v.id,
-    business_id: v.businessId,
-    product_id: v.productId,
-    previous_qty: v.previousQty,
-    change_qty: v.changeQty,
-    new_qty: v.newQty,
-    type: v.type,
-    reason: v.reason || null,
-    reference_id: v.referenceId || null,
-    created_at: v.createdAt
-  });
+export async function createStockMovement(
+  v: StockMovement
+): Promise<void> {
+  const { error } = await supabase
+    .from('stock_movements')
+    .insert({
+      id: v.id,
+      business_id: v.businessId,
+      product_id: v.productId,
+      previous_qty: v.previousQty,
+      change_qty: v.changeQty,
+      new_qty: v.newQty,
+      type: v.type,
+      reason: v.reason || null,
+      reference_id: v.referenceId || null,
+      created_at: v.createdAt
+    });
+
   check(error);
 }
-export async function getStockMovements(productId: string): Promise<StockMovement[]> { const { data, error } = await supabase.from('stock_movements').select('*, products(name)').eq('product_id', productId).order('created_at', { ascending: false }); check(error); return list(data).map(r => ({ id: s(r.id), businessId: s(r.business_id), productId: s(r.product_id), productName: s(list(r.products)[0]?.name), previousQty: n(r.previous_qty), changeQty: n(r.change_qty), newQty: n(r.new_qty), type: r.type, reason: o(r.reason), referenceId: o(r.reference_id), createdAt: s(r.created_at) })); }
 
-export async function createCustomer(v: Customer): Promise<void> { const { error } = await supabase.from('customers').insert({ id: v.id, business_id: v.businessId, name: v.name, mobile: v.mobile || null, email: v.email || null, address: v.address || null, opening_balance: v.openingBalance, balance: v.balance, credit_limit: v.creditLimit ?? null, notes: v.notes || null, created_at: v.createdAt, updated_at: v.updatedAt }); check(error); if (v.openingBalance) await createCustomerLedger({ id: generateId(), businessId: v.businessId, customerId: v.id, customerName: v.name, date: v.createdAt, type: 'opening_balance', description: 'Opening Balance', debit: Math.max(v.openingBalance, 0), credit: Math.max(-v.openingBalance, 0), balance: v.openingBalance, createdAt: v.createdAt }); }
-export async function updateCustomer(v: Customer): Promise<void> { const { error } = await supabase.from('customers').update({ name: v.name, mobile: v.mobile || null, email: v.email || null, address: v.address || null, credit_limit: v.creditLimit ?? null, notes: v.notes || null, updated_at: v.updatedAt }).eq('id', v.id); check(error); }
-export async function getCustomers(businessId: string): Promise<Customer[]> { const { data, error } = await supabase.from('customers').select('*').eq('business_id', businessId).order('name'); check(error); return list(data).map(mapCustomer); }
-export async function searchCustomers(businessId: string, query: string): Promise<Customer[]> { const term = query.toLowerCase(); return (await getCustomers(businessId)).filter(c => c.name.toLowerCase().includes(term) || c.mobile?.includes(term)); }
-export async function getCustomerById(id: string): Promise<Customer | null> { const { data, error } = await supabase.from('customers').select('*').eq('id', id).maybeSingle(); check(error); return data ? mapCustomer(data) : null; }
-export async function updateCustomerBalance(id: string, value: number): Promise<void> { await setBalance('customers', id, value); }
-export async function getCustomerStats(businessId: string, customerId: string) { const [a, b] = await Promise.all([supabase.from('sales').select('total').eq('business_id', businessId).eq('customer_id', customerId).eq('status', 'completed'), supabase.from('payments').select('amount').eq('business_id', businessId).eq('customer_id', customerId)]); check(a.error); check(b.error); return { totalPurchases: list(a.data).reduce((x, r) => x + n(r.total), 0), totalPaid: list(b.data).reduce((x, r) => x + n(r.amount), 0), purchaseCount: list(a.data).length }; }
-export async function createCustomerLedger(v: CustomerLedger): Promise<void> { await insertLedger(v, 'customer_ledger'); }
-export async function getCustomerLedger(id: string): Promise<CustomerLedger[]> { const { data, error } = await supabase.from('customer_ledger').select('*').eq('customer_id', id).order('date').order('created_at'); check(error); return list(data).map(mapLedger); }
-export async function getCustomerLedgerByBusiness(businessId: string, id: string): Promise<CustomerLedger[]> { const { data, error } = await supabase.from('customer_ledger').select('*').eq('business_id', businessId).eq('customer_id', id).order('date').order('created_at'); check(error); return list(data).map(mapLedger); }
-export async function recalculateCustomerBalance(id: string): Promise<number> { const value = (await getCustomerLedger(id)).reduce((x, r) => x + r.debit - r.credit, 0); await updateCustomerBalance(id, value); return value; }
-export async function createSupplierLedger(v: SupplierLedger): Promise<void> { await insertLedger(v, 'supplier_ledger'); }
-export async function getSupplierLedger(id: string): Promise<SupplierLedger[]> { const { data, error } = await supabase.from('supplier_ledger').select('*').eq('supplier_id', id).order('date').order('created_at'); check(error); return list(data).map(mapSLedger); }
-export async function recalculateSupplierBalance(id: string): Promise<number> { const value = (await getSupplierLedger(id)).reduce((x, r) => x + r.debit - r.credit, 0); await updateSupplierBalance(id, value); return value; }
+export async function getStockMovements(
+  productId: string
+): Promise<StockMovement[]> {
+  const { data, error } = await supabase
+    .from('stock_movements')
+    .select('*, products(name)')
+    .eq('product_id', productId)
+    .order('created_at', {
+      ascending: false
+    });
 
-export async function createSale(sale: Sale, items: SaleItem[], stockMovements: StockMovement[], invoiceHtml: string): Promise<void> { const { error } = await supabase.rpc('create_sale_atomic', { payload: { sale, items, stockMovements, invoiceHtml } }); check(error); }
-export async function createSalesReturn(saleId: string, returnedItems: { productId: string; productName: string; quantity: number; price: number }[], reason: string): Promise<void> { const { error } = await supabase.rpc('create_sales_return_atomic', { sale_id: saleId, returned_items: returnedItems, return_reason: reason }); check(error); }
-export async function getSales(businessId: string, limit = 50): Promise<Sale[]> { const { data, error } = await supabase.from('sales').select('*').eq('business_id', businessId).order('created_at', { ascending: false }).limit(limit); check(error); return list(data).map(mapSale); }
-export async function getSalesByDateRange(businessId: string, start: string, end: string): Promise<Sale[]> { const { data, error } = await supabase.from('sales').select('*').eq('business_id', businessId).gte('created_at', start).lte('created_at', end).eq('status', 'completed').order('created_at', { ascending: false }); check(error); return list(data).map(mapSale); }
-export async function getSaleById(id: string): Promise<Sale | null> { const { data, error } = await supabase.from('sales').select('*').eq('id', id).maybeSingle(); check(error); return data ? mapSale(data) : null; }
-export async function getSaleItems(id: string): Promise<SaleItem[]> { const { data, error } = await supabase.from('sale_items').select('*').eq('sale_id', id); check(error); return list(data).map(mapItem); }
-export async function searchSales(businessId: string, query: string): Promise<Sale[]> { const term = query.toLowerCase(); return (await getSales(businessId, 1000)).filter(x => x.invoiceNumber.toLowerCase().includes(term) || x.customerName?.toLowerCase().includes(term)).slice(0, 50); }
-export async function createPurchase(purchase: Purchase, items: PurchaseItem[], stockMovements: StockMovement[]): Promise<void> { const { error } = await supabase.rpc('create_purchase_atomic', { payload: { purchase, items, stockMovements } }); check(error); }
-export async function createPurchaseReturn(purchaseId: string, returnedItems: { productId: string; productName: string; quantity: number; price: number }[], reason: string): Promise<void> { const { error } = await supabase.rpc('create_purchase_return_atomic', { purchase_id: purchaseId, returned_items: returnedItems, return_reason: reason }); check(error); }
-export async function getPurchases(businessId: string, limit = 50): Promise<Purchase[]> { const { data, error } = await supabase.from('purchases').select('*').eq('business_id', businessId).order('created_at', { ascending: false }).limit(limit); check(error); return list(data).map(mapPurchase); }
-export async function getPurchaseById(id: string): Promise<Purchase | null> { const { data, error } = await supabase.from('purchases').select('*').eq('id', id).maybeSingle(); check(error); return data ? mapPurchase(data) : null; }
-export async function getPurchaseItems(id: string): Promise<PurchaseItem[]> { const { data, error } = await supabase.from('purchase_items').select('*').eq('purchase_id', id); check(error); return list(data).map(r => ({ ...mapItem(r), purchaseId: s(r.purchase_id), productId: o(r.product_id) } as PurchaseItem)); }
-export async function getPurchasesBySupplier(businessId: string, supplierId: string): Promise<Purchase[]> { return (await getPurchases(businessId, 1000)).filter(x => x.supplierId === supplierId); }
-export async function createPayment(v: Payment): Promise<void> { const { error } = await supabase.rpc('create_payment_atomic', { payload: v }); check(error); }
-export async function getPayments(businessId: string, limit = 50): Promise<Payment[]> { const { data, error } = await supabase.from('payments').select('*').eq('business_id', businessId).order('created_at', { ascending: false }).limit(limit); check(error); return list(data).map(mapPayment); }
-export async function getPaymentsForCustomer(businessId: string, customerId: string): Promise<Payment[]> { return (await getPayments(businessId, 1000)).filter(x => x.customerId === customerId); }
-export async function createExpense(v: Expense): Promise<void> { const { error } = await supabase.from('expenses').insert({ id: v.id, business_id: v.businessId, title: v.title, category: v.category, amount: v.amount, payment_method: v.paymentMethod, description: v.description || null, created_at: v.createdAt }); check(error); }
-export async function getExpenses(businessId: string, limit = 50): Promise<Expense[]> { const { data, error } = await supabase.from('expenses').select('*').eq('business_id', businessId).order('created_at', { ascending: false }).limit(limit); check(error); return list(data).map(mapExpense); }
-export async function getExpensesByDateRange(businessId: string, start: string, end: string): Promise<Expense[]> { return (await getExpenses(businessId, 10000)).filter(x => x.createdAt >= start && x.createdAt <= end); }
-export async function getTodayExpenses(businessId: string): Promise<number> { return (await getExpensesByDateRange(businessId, getStartOfDay(), getEndOfDay())).reduce((x, e) => x + e.amount, 0); }
-export async function getExpenseCategories(businessId: string) { return getExpenseCategoriesByMonth(businessId, getStartOfDay(), getEndOfDay()); }
-export async function getExpenseCategoriesByMonth(businessId: string, start: string, end: string): Promise<{ category: string; amount: number }[]> { const map = new Map<string, number>(); (await getExpensesByDateRange(businessId, start, end)).forEach(x => map.set(x.category, (map.get(x.category) || 0) + x.amount)); return [...map].map(([category, amount]) => ({ category, amount })).sort((a, b) => b.amount - a.amount); }
-export async function getInvoiceHtml(saleId: string): Promise<string | null> { const { data, error } = await supabase.from('invoices').select('html_content').eq('sale_id', saleId).maybeSingle(); check(error); return data?.html_content || null; }
-
-export async function createBusinessSettings(v: BusinessSettings): Promise<void> { const { error } = await supabase.from('business_settings').upsert({ id: v.id, business_id: v.businessId, allow_negative_stock: v.allowNegativeStock, low_stock_alert_enabled: v.lowStockAlertEnabled, payment_reminder_enabled: v.paymentReminderEnabled, auto_backup_enabled: v.autoBackupEnabled, backup_interval: v.backupInterval, last_backup_at: v.lastBackupAt || null, pin_code: v.pinCode || null, updated_at: v.updatedAt }, { onConflict: 'business_id' }); check(error); }
-export async function getBusinessSettings(id: string): Promise<BusinessSettings | null> { const { data, error } = await supabase.from('business_settings').select('*').eq('business_id', id).maybeSingle(); check(error); return data ? { id: s(data.id), businessId: s(data.business_id), allowNegativeStock: data.allow_negative_stock === true, lowStockAlertEnabled: data.low_stock_alert_enabled === true, paymentReminderEnabled: data.payment_reminder_enabled === true, autoBackupEnabled: data.auto_backup_enabled === true, backupInterval: n(data.backup_interval) || 7, lastBackupAt: o(data.last_backup_at), pinCode: o(data.pin_code), updatedAt: s(data.updated_at) } : null; }
-export async function updateBusinessSettings(v: BusinessSettings): Promise<void> { const { error } = await supabase.from('business_settings').update({ allow_negative_stock: v.allowNegativeStock, low_stock_alert_enabled: v.lowStockAlertEnabled, payment_reminder_enabled: v.paymentReminderEnabled, auto_backup_enabled: v.autoBackupEnabled, backup_interval: v.backupInterval, last_backup_at: v.lastBackupAt || null, pin_code: v.pinCode || null, updated_at: v.updatedAt }).eq('business_id', v.businessId); check(error); }
-export async function createBackupRecord(v: BackupRecord): Promise<void> { const { error } = await supabase.from('backup_records').insert({ id: v.id, business_id: v.businessId, type: v.type, data_size: v.dataSize, created_at: v.createdAt, status: v.status, error_message: v.errorMessage || null }); check(error); const settings = await getBusinessSettings(v.businessId); if (settings) await updateBusinessSettings({ ...settings, lastBackupAt: v.createdAt }); }
-export async function getLastBackupRecord(id: string): Promise<BackupRecord | null> { const { data, error } = await supabase.from('backup_records').select('*').eq('business_id', id).order('created_at', { ascending: false }).limit(1).maybeSingle(); check(error); return data ? { id: s(data.id), businessId: s(data.business_id), type: data.type, dataSize: n(data.data_size), createdAt: s(data.created_at), status: data.status, errorMessage: o(data.error_message) } : null; }
-
-export async function getDashboardStats(businessId: string): Promise<DashboardStats> { const [sales, purchases, expenses, customers, products] = await Promise.all([getSalesByDateRange(businessId, getStartOfDay(), getEndOfDay()), getPurchases(businessId, 10000), getExpensesByDateRange(businessId, getStartOfDay(), getEndOfDay()), getCustomers(businessId), stockProducts(businessId)]); const expenseTotal = expenses.reduce((x, e) => x + e.amount, 0); const todayPurchases = purchases.filter(x => x.createdAt >= getStartOfDay() && x.createdAt <= getEndOfDay()); return { todaySales: sales.reduce((x, s) => x + s.total, 0), todayBills: sales.length, todayExpenses: expenseTotal, todayCash: sales.filter(x => x.paymentMethod === 'cash' || x.paymentMethod === 'mixed').reduce((x, s) => x + s.paid, 0) - expenseTotal, totalReceivables: sales.reduce((x, s) => x + s.due, 0), lowStockCount: products.filter(x => x.currentStock > 0 && x.currentStock <= x.minStockLevel).length, outOfStockCount: products.filter(x => x.currentStock <= 0).length, currentBalance: customers.reduce((x, c) => x + c.balance, 0), todayPurchases: todayPurchases.reduce((x, p) => x + p.total, 0), estimatedProfit: 0 }; }
-export async function getRecentTransactions(businessId: string): Promise<RecentTransaction[]> { const [sales, payments, expenses] = await Promise.all([getSalesByDateRange(businessId, getStartOfDay(), getEndOfDay()), getPayments(businessId), getExpensesByDateRange(businessId, getStartOfDay(), getEndOfDay())]); return [...sales.map(x => ({ id: x.id, type: 'sale' as const, description: `Sale ${x.invoiceNumber}`, amount: x.total, date: x.createdAt })), ...payments.filter(x => x.createdAt >= getStartOfDay()).map(x => ({ id: x.id, type: 'payment' as const, description: 'Payment Received', amount: x.amount, date: x.createdAt })), ...expenses.map(x => ({ id: x.id, type: 'expense' as const, description: x.title, amount: x.amount, date: x.createdAt }))].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 10); }
-export async function getUnifiedTransactions(businessId: string, limit = 100): Promise<UnifiedTransaction[]> { const [sales, purchases, payments, expenses] = await Promise.all([getSales(businessId, limit), getPurchases(businessId, limit), getPayments(businessId, limit), getExpenses(businessId, limit)]); return [...sales.map(x => ({ id: x.id, type: 'sale' as const, description: `Sale ${x.invoiceNumber}`, amount: x.total, date: x.createdAt, referenceId: x.id, entityName: x.customerName, debit: 0, credit: x.total })), ...purchases.map(x => ({ id: x.id, type: 'purchase' as const, description: `Purchase ${x.invoiceNumber}`, amount: x.total, date: x.createdAt, referenceId: x.id, entityName: x.supplierName, debit: x.total, credit: 0 })), ...payments.map(x => ({ id: x.id, type: x.customerId ? 'customer_payment' as const : 'supplier_payment' as const, description: x.customerId ? 'Customer Payment' : 'Supplier Payment', amount: x.amount, date: x.createdAt, debit: x.supplierId ? x.amount : 0, credit: x.customerId ? x.amount : 0 })), ...expenses.map(x => ({ id: x.id, type: 'expense' as const, description: x.title, amount: x.amount, date: x.createdAt, debit: x.amount, credit: 0 }))].sort((a, b) => b.date.localeCompare(a.date)).slice(0, limit); }
-export async function getSalesReport(businessId: string, start: string, end: string): Promise<SalesReport> { const sales = await getSalesByDateRange(businessId, start, end); const total = sales.reduce((x, s) => x + s.total, 0); return { totalSales: total, totalBills: sales.length, totalItems: (await Promise.all(sales.map(x => getSaleItems(x.id)))).flat().reduce((x, i) => x + i.quantity, 0), cashSales: sales.filter(x => x.paymentMethod === 'cash').reduce((x, s) => x + s.total, 0), upiSales: sales.filter(x => x.paymentMethod === 'upi').reduce((x, s) => x + s.total, 0), creditSales: sales.filter(x => x.paymentMethod === 'credit').reduce((x, s) => x + s.total, 0), cardSales: sales.filter(x => x.paymentMethod === 'card').reduce((x, s) => x + s.total, 0), averageBill: sales.length ? total / sales.length : 0, discountTotal: sales.reduce((x, s) => x + s.discount, 0), taxTotal: sales.reduce((x, s) => x + s.taxAmount, 0), period: `${start} to ${end}` }; }
-export async function getProductReport(businessId: string, limit = 50): Promise<ProductReport[]> { const products = await stockProducts(businessId); const sales = await getSales(businessId, 10000); const itemLists = await Promise.all(sales.map(x => getSaleItems(x.id))); const totals = new Map<string, { sold: number; revenue: number }>(); itemLists.flat().forEach(x => { const old = totals.get(x.productId) || { sold: 0, revenue: 0 }; totals.set(x.productId, { sold: old.sold + x.quantity, revenue: old.revenue + x.total }); }); return products.map(p => { const total = totals.get(p.id) || { sold: 0, revenue: 0 }; const status: ProductReport['status'] = total.sold > 20 ? 'best_seller' : total.sold < 3 && p.currentStock > 0 ? 'slow_moving' : 'normal'; return { productId: p.id, productName: p.name, totalSold: total.sold, totalRevenue: total.revenue, totalProfit: total.revenue - total.sold * p.purchasePrice, currentStock: p.currentStock, status }; }).sort((a, b) => b.totalSold - a.totalSold).slice(0, limit); }
-export async function getCustomerReport(businessId: string): Promise<CustomerReport[]> { return Promise.all((await getCustomers(businessId)).map(async c => { const stats = await getCustomerStats(businessId, c.id); return { customerId: c.id, customerName: c.name, totalPurchases: stats.totalPurchases, totalPaid: stats.totalPaid, outstanding: c.balance, purchaseCount: stats.purchaseCount }; })); }
-export async function getExpenseReport(businessId: string, start: string, end: string): Promise<ExpenseReport> { const expenses = await getExpensesByDateRange(businessId, start, end); const total = expenses.reduce((x, e) => x + e.amount, 0); const categories = await getExpenseCategoriesByMonth(businessId, start, end); return { totalExpenses: total, categoryBreakdown: categories.map(x => ({ ...x, percentage: total ? Math.round(x.amount / total * 100) : 0 })), period: `${start} to ${end}` }; }
-export async function getBalanceSummary(businessId: string) { const [sales, expenses, customers, suppliers, products] = await Promise.all([getSales(businessId, 10000), getExpenses(businessId, 10000), getCustomers(businessId), getSuppliers(businessId), stockProducts(businessId)]); const totalExpenses = expenses.reduce((x, e) => x + e.amount, 0); const cashInHand = sales.filter(x => x.paymentMethod === 'cash').reduce((x, s) => x + s.paid, 0) - totalExpenses * .6; const upiBalance = sales.filter(x => x.paymentMethod === 'upi').reduce((x, s) => x + s.paid, 0) - totalExpenses * .2; const bankBalance = sales.filter(x => x.paymentMethod === 'card').reduce((x, s) => x + s.paid, 0) - totalExpenses * .2; const totalReceivables = customers.reduce((x, c) => x + c.balance, 0); const totalPayables = suppliers.reduce((x, p) => x + p.balance, 0); const totalStockValue = products.reduce((x, p) => x + p.purchasePrice * p.currentStock, 0); return { cashInHand, bankBalance, upiBalance, totalReceivables, totalPayables, totalStockValue, netPosition: cashInHand + bankBalance + upiBalance + totalReceivables - totalPayables + totalStockValue }; }
-
-const tables = ['businesses', 'categories', 'suppliers', 'products', 'inventory', 'stock_movements', 'customers', 'sales', 'sale_items', 'purchases', 'purchase_items', 'payments', 'expenses', 'invoices', 'customer_ledger', 'supplier_ledger', 'business_settings', 'backup_records'];
-export async function exportAllData(businessId: string): Promise<Record<string, unknown>> { const result: Record<string, unknown> = { businessId, exportedAt: new Date().toISOString() }; for (const table of tables) { let data: unknown; let error: any; if (table === 'sale_items') { const sales = await supabase.from('sales').select('id').eq('business_id', businessId); check(sales.error); const response = await supabase.from(table).select('*').in('sale_id', list(sales.data).map(r => r.id)); data = response.data; error = response.error; } else if (table === 'purchase_items') { const purchases = await supabase.from('purchases').select('id').eq('business_id', businessId); check(purchases.error); const response = await supabase.from(table).select('*').in('purchase_id', list(purchases.data).map(r => r.id)); data = response.data; error = response.error; } else { const response = await supabase.from(table).select('*').eq('business_id', businessId); data = response.data; error = response.error; } check(error); result[table] = data || []; } return result; }
-export async function importData(data: Record<string, unknown>): Promise<void> { for (const table of tables) { const values = list(data[table]); if (values.length) { const { error } = await supabase.from(table).upsert(values); check(error); } } }
-export async function clearAllData(): Promise<void> { throw new Error('Supabase is the persistent database; bulk deletion is disabled.'); }
-export async function resetDatabase(): Promise<void> { throw new Error('resetDatabase is unavailable because Supabase is the persistent database.'); }
+  
