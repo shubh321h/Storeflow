@@ -897,4 +897,10 @@ export async function getStockMovements(
       ascending: false
     });
 
-  
+    if (error) {
+    console.error('Error fetching stock movements:', error);
+    throw error;
+  }
+
+  return (data ?? []) as StockMovement[];
+}
