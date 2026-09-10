@@ -56,6 +56,7 @@ export async function getLowStockProducts(businessId: string): Promise<Product[]
 export async function getOutOfStockProducts(businessId: string): Promise<Product[]> { return (await stockProducts(businessId)).filter(p => p.currentStock <= 0); }
 export async function updateProductStock(
   id: string,
+  businessId: string,
   value: number
 ): Promise<void> {
   const { error } = await supabase
@@ -63,6 +64,7 @@ export async function updateProductStock(
     .upsert(
       {
         product_id: id,
+        business_id: businessId,
         current_stock: value,
         updated_at: new Date().toISOString(),
       },
