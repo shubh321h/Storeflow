@@ -60,11 +60,16 @@ export async function updateProductStock(
 ): Promise<void> {
   const { error } = await supabase
     .from('inventory')
-    .update({
-      current_stock: value,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('product_id', id);
+    .upsert(
+      {
+        product_id: id,
+        current_stock: value,
+        updated_at: new Date().toISOString(),
+      },
+      {
+        onConflict: 'product_id',
+      }
+    );
 
   check(error);
 }
