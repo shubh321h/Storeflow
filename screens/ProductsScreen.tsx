@@ -242,8 +242,15 @@ const loadData = useCallback(async () => {
     loadingRef.current = false;
     setLoading(false);
   }
-}, [business?.id]);
-  const debouncedSearch = useCallback(
+  }, [business?.id]);
+
+useFocusEffect(
+  useCallback(() => {
+    loadData();
+  }, [loadData])
+);
+
+const debouncedSearch = useCallback(
     debounce(async (query: string) => {
       if (!business) return;
       if (query.trim()) {
