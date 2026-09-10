@@ -12,6 +12,7 @@ import { CameraView, Camera } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 import { useBusiness } from '../context/BusinessContext';
 import { getProductByBarcode } from '../lib/database';
+import { lookupBarcodeMetadata } from '../lib/barcodeMetadata';
 import {
   getFoodProductByBarcode,
   FoodProductMetadata,
