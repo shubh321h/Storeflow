@@ -122,6 +122,18 @@ async function handleBarcodeScanned({ data }: { data: string }) {
 
       return;
     }
+    const metadata = await lookupBarcodeMetadata(data);
+
+if (metadata) {
+  navigation.navigate('Products', {
+    scannedBarcode: data,
+    barcodeMetadata: metadata,
+  });
+} else {
+  navigation.navigate('Products', {
+    scannedBarcode: data,
+  });
+}
 
     // 3. Nothing found -> open manual Add Product form
     if (mode === 'add') {
