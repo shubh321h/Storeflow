@@ -3,7 +3,11 @@ import { generateId, getStartOfDay, getEndOfDay } from './utils';
 import { supabase } from '../supabase';
 
 type Row = Record<string, any>;
-const list = (v: unknown): Row[] => Array.isArray(v) ? v as Row[] : [];
+const list = (v: unknown): Row[] => {
+  if (Array.isArray(v)) return v as Row[];
+  if (v && typeof v === 'object') return [v as Row];
+  return [];
+};
 const n = (v: unknown) => Number.isFinite(Number(v)) ? Number(v) : 0;
 const s = (v: unknown, fallback = '') => v == null ? fallback : String(v);
 const o = (v: unknown) => v == null || v === '' ? undefined : String(v);
