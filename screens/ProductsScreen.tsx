@@ -205,11 +205,26 @@ const loadData = useCallback(async () => {
   setLoading(true);
   setError(null);
 
+  const timeout = new Promise<never>((_, reject) => {
+    setTimeout(() => {
+      reject(
+        new Error(
+          'Product data request timed out. Please check your internet connection and try again.'
+        )
+      );
+    }, 15000);
+  });
+
   try {
-    const [prods, cats, supps] = await Promise.all([
+    const dataRequest = Promise.all([
       getProducts(business.id),
       getCategories(business.id),
       getSuppliers(business.id),
+    ]);
+
+    const [prods, cats, supps] = await Promise.race([
+      dataRequest,
+      timeout,
     ]);
 
     setProducts(Array.isArray(prods) ? prods : []);
@@ -228,11 +243,6 @@ const loadData = useCallback(async () => {
     setLoading(false);
   }
 }, [business?.id]);
-
-
-
-
-
   const debouncedSearch = useCallback(
     debounce(async (query: string) => {
       if (!business) return;
