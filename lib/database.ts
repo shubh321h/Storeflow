@@ -54,8 +54,36 @@ export async function getProductById(id: string): Promise<Product | null> { cons
 export async function getProductByBarcode(businessId: string, barcode: string): Promise<Product | null> { return (await stockProducts(businessId)).find(p => p.barcode === barcode) || null; }
 export async function getLowStockProducts(businessId: string): Promise<Product[]> { return (await stockProducts(businessId)).filter(p => p.currentStock <= p.minStockLevel && p.currentStock > 0); }
 export async function getOutOfStockProducts(businessId: string): Promise<Product[]> { return (await stockProducts(businessId)).filter(p => p.currentStock <= 0); }
-export async function updateProductStock(id: string, value: number): Promise<void> { const { error } = await supabase.from('inventory').upsert({ product_id: id, current_stock: value }, { onConflict: 'product_id' }); check(error); }
-export async function createStockMovement(v: StockMovement): Promise<void> { const { error } = await supabase.from('stock_movements').insert({ id: v.id, business_id: v.businessId, product_id: v.productId, previous_qty: v.previousQty, change_qty: v.changeQty, new_qty: v.newQty, type: v.type, reason: v.reason || null, reference_id: v.referenceId || null, created_at: v.createdAt }); check(error); }
+export async function updateProductStock(
+  id: string,
+  value: number
+): Promise<void> {
+  const { error } = await supabase
+    .from('inventory')
+    .update({
+      current_stock: value,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('product_id', id);
+
+  check(error);
+}
+
+export async function createStockMovement(v: StockMovement): Promise<void> {
+  const { error } = await supabase.from('stock_movements').insert({
+    id: v.id,
+    business_id: v.businessId,
+    product_id: v.productId,
+    previous_qty: v.previousQty,
+    change_qty: v.changeQty,
+    new_qty: v.newQty,
+    type: v.type,
+    reason: v.reason || null,
+    reference_id: v.referenceId || null,
+    created_at: v.createdAt
+  });
+  check(error);
+}
 export async function getStockMovements(productId: string): Promise<StockMovement[]> { const { data, error } = await supabase.from('stock_movements').select('*, products(name)').eq('product_id', productId).order('created_at', { ascending: false }); check(error); return list(data).map(r => ({ id: s(r.id), businessId: s(r.business_id), productId: s(r.product_id), productName: s(list(r.products)[0]?.name), previousQty: n(r.previous_qty), changeQty: n(r.change_qty), newQty: n(r.new_qty), type: r.type, reason: o(r.reason), referenceId: o(r.reference_id), createdAt: s(r.created_at) })); }
 
 export async function createCustomer(v: Customer): Promise<void> { const { error } = await supabase.from('customers').insert({ id: v.id, business_id: v.businessId, name: v.name, mobile: v.mobile || null, email: v.email || null, address: v.address || null, opening_balance: v.openingBalance, balance: v.balance, credit_limit: v.creditLimit ?? null, notes: v.notes || null, created_at: v.createdAt, updated_at: v.updatedAt }); check(error); if (v.openingBalance) await createCustomerLedger({ id: generateId(), businessId: v.businessId, customerId: v.id, customerName: v.name, date: v.createdAt, type: 'opening_balance', description: 'Opening Balance', debit: Math.max(v.openingBalance, 0), credit: Math.max(-v.openingBalance, 0), balance: v.openingBalance, createdAt: v.createdAt }); }
