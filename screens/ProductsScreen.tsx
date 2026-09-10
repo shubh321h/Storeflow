@@ -475,7 +475,11 @@ const debouncedSearch = useCallback(
         reason: stockAdjustmentReason || undefined,
         createdAt: new Date().toISOString(),
       });
-      await updateProductStock(selectedProduct.id, newQty);
+      await updateProductStock(
+  selectedProduct.id,
+  business.id,
+  newQty
+);
       setShowStockModal(false);
       setSelectedProduct(null);
       loadData();
