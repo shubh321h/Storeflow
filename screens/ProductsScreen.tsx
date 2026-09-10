@@ -87,7 +87,7 @@ const handleBarcodeScanned = useCallback(
   (
     barcode: string,
     scannedProduct?: Product | null,
-    metadata?: FoodProductMetadata
+    metadata?: FoodProductMetadata | BarcodeMetadata
   ) => {
     if (!barcode) return;
 
