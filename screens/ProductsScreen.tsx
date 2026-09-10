@@ -12,6 +12,7 @@ import {
 import { Product, Category, Supplier, StockMovement } from '../lib/types';
 import { generateId, debounce, roundTo2 } from '../lib/utils';
 import { FoodProductMetadata } from '../lib/openFoodFacts';
+import { BarcodeMetadata } from '../lib/barcodeMetadata';
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOW, COMMON_STYLES } from '../lib/theme';
 import AppHeader from '../components/AppHeader';
 import SearchBar from '../components/SearchBar';
