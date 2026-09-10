@@ -1051,6 +1051,28 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: SPACING.xl,
   },
+    errorContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: SPACING.lg,
+  },
+
+  errorTitle: {
+    fontSize: FONT_SIZE.lg,
+    fontWeight: '700',
+    color: COLORS.textPrimary,
+    marginTop: SPACING.md,
+    textAlign: 'center',
+  },
+
+  errorMessage: {
+    fontSize: FONT_SIZE.md,
+    color: COLORS.textSecondary,
+    marginTop: SPACING.sm,
+    marginBottom: SPACING.lg,
+    textAlign: 'center',
+  },
   historyItem: {
     backgroundColor: COLORS.surface,
     borderRadius: BORDER_RADIUS.md,
