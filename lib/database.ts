@@ -885,7 +885,6 @@ export async function createStockMovement(
 
   check(error);
 }
-
 export async function getStockMovements(
   productId: string
 ): Promise<StockMovement[]> {
@@ -893,14 +892,991 @@ export async function getStockMovements(
     .from('stock_movements')
     .select('*, products(name)')
     .eq('product_id', productId)
+    .order('created_at', { ascending: false });
+
+  check(error);
+
+  return list(data).map(r => ({
+    id: s(r.id),
+    businessId: s(r.business_id),
+    productId: s(r.product_id),
+    productName: s(list(r.products)[0]?.name),
+    previousQty: n(r.previous_qty),
+    changeQty: n(r.change_qty),
+    newQty: n(r.new_qty),
+    type: r.type,
+    reason: o(r.reason),
+    referenceId: o(r.reference_id),
+    createdAt: s(r.created_at),
+  }));
+}
+
+export async function createCustomer(v: Customer): Promise<void> {
+  const { error } = await supabase.from('customers').insert({
+    id: v.id,
+    business_id: v.businessId,
+    name: v.name,
+    mobile: v.mobile || null,
+    email: v.email || null,
+    address: v.address || null,
+    opening_balance: v.openingBalance,
+    balance: v.balance,
+    credit_limit: v.creditLimit ?? null,
+    notes: v.notes || null,
+    created_at: v.createdAt,
+    updated_at: v.updatedAt
+  });
+
+  check(error);
+
+  if (v.openingBalance) {
+    await createCustomerLedger({
+      id: generateId(),
+      businessId: v.businessId,
+      customerId: v.id,
+      customerName: v.name,
+      date: v.createdAt,
+      type: 'opening_balance',
+      description: 'Opening Balance',
+      debit: Math.max(v.openingBalance, 0),
+      credit: Math.max(-v.openingBalance, 0),
+      balance: v.openingBalance,
+      createdAt: v.createdAt
+    });
+  }
+}
+
+export async function updateCustomer(v: Customer): Promise<void> {
+  const { error } = await supabase
+    .from('customers')
+    .update({
+      name: v.name,
+      mobile: v.mobile || null,
+      email: v.email || null,
+      address: v.address || null,
+      credit_limit: v.creditLimit ?? null,
+      notes: v.notes || null,
+      updated_at: v.updatedAt
+    })
+    .eq('id', v.id);
+
+  check(error);
+}
+
+export async function getCustomers(
+  businessId: string
+): Promise<Customer[]> {
+  const { data, error } = await supabase
+    .from('customers')
+    .select('*')
+    .eq('business_id', businessId)
+    .order('name');
+
+  check(error);
+
+  return list(data).map(mapCustomer);
+}
+
+export async function searchCustomers(
+  businessId: string,
+  query: string
+): Promise<Customer[]> {
+  const term = query.toLowerCase();
+
+  return (await getCustomers(businessId))
+    .filter(
+      c =>
+        c.name.toLowerCase().includes(term) ||
+        c.mobile?.includes(term)
+    );
+}
+
+export async function getCustomerById(
+  id: string
+): Promise<Customer | null> {
+  const { data, error } = await supabase
+    .from('customers')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+
+  check(error);
+
+  return data ? mapCustomer(data) : null;
+}
+
+export async function updateCustomerBalance(
+  id: string,
+  value: number
+): Promise<void> {
+  await setBalance('customers', id, value);
+}
+
+export async function getCustomerStats(
+  businessId: string,
+  customerId: string
+) {
+  const [a, b] = await Promise.all([
+    supabase
+      .from('sales')
+      .select('total')
+      .eq('business_id', businessId)
+      .eq('customer_id', customerId)
+      .eq('status', 'completed'),
+
+    supabase
+      .from('payments')
+      .select('amount')
+      .eq('business_id', businessId)
+      .eq('customer_id', customerId)
+  ]);
+
+  check(a.error);
+  check(b.error);
+
+  return {
+    totalPurchases: list(a.data).reduce(
+      (x, r) => x + n(r.total),
+      0
+    ),
+    totalPaid: list(b.data).reduce(
+      (x, r) => x + n(r.amount),
+      0
+    ),
+    purchaseCount: list(a.data).length
+  };
+}
+
+export async function createCustomerLedger(
+  v: CustomerLedger
+): Promise<void> {
+  await insertLedger(v, 'customer_ledger');
+}
+
+export async function getCustomerLedger(
+  id: string
+): Promise<CustomerLedger[]> {
+  const { data, error } = await supabase
+    .from('customer_ledger')
+    .select('*')
+    .eq('customer_id', id)
+    .order('date')
+    .order('created_at');
+
+  check(error);
+
+  return list(data).map(mapLedger);
+}
+
+export async function getCustomerLedgerByBusiness(
+  businessId: string,
+  id: string
+): Promise<CustomerLedger[]> {
+  const { data, error } = await supabase
+    .from('customer_ledger')
+    .select('*')
+    .eq('business_id', businessId)
+    .eq('customer_id', id)
+    .order('date')
+    .order('created_at');
+
+  check(error);
+
+  return list(data).map(mapLedger);
+}
+
+export async function recalculateCustomerBalance(
+  id: string
+): Promise<number> {
+  const value = (await getCustomerLedger(id)).reduce(
+    (x, r) => x + r.debit - r.credit,
+    0
+  );
+
+  await updateCustomerBalance(id, value);
+
+  return value;
+}
+
+export async function createSupplierLedger(
+  v: SupplierLedger
+): Promise<void> {
+  await insertLedger(v, 'supplier_ledger');
+}
+
+export async function getSupplierLedger(
+  id: string
+): Promise<SupplierLedger[]> {
+  const { data, error } = await supabase
+    .from('supplier_ledger')
+    .select('*')
+    .eq('supplier_id', id)
+    .order('date')
+    .order('created_at');
+
+  check(error);
+
+  return list(data).map(mapSLedger);
+}
+
+export async function recalculateSupplierBalance(
+  id: string
+): Promise<number> {
+  const value = (await getSupplierLedger(id)).reduce(
+    (x, r) => x + r.debit - r.credit,
+    0
+  );
+
+  await updateSupplierBalance(id, value);
+
+  return value;
+}
+
+export async function createSale(
+  sale: Sale,
+  items: SaleItem[],
+  stockMovements: StockMovement[],
+  invoiceHtml: string
+): Promise<void> {
+  const { error } = await supabase.rpc(
+    'create_sale_atomic',
+    {
+      payload: {
+        sale,
+        items,
+        stockMovements,
+        invoiceHtml
+      }
+    }
+  );
+
+  check(error);
+}
+
+export async function createSalesReturn(
+  saleId: string,
+  returnedItems: {
+    productId: string;
+    productName: string;
+    quantity: number;
+    price: number;
+  }[],
+  reason: string
+): Promise<void> {
+  const { error } = await supabase.rpc(
+    'create_sales_return_atomic',
+    {
+      sale_id: saleId,
+      returned_items: returnedItems,
+      return_reason: reason
+    }
+  );
+
+  check(error);
+}
+
+export async function getSales(
+  businessId: string,
+  limit = 50
+): Promise<Sale[]> {
+  const { data, error } = await supabase
+    .from('sales')
+    .select('*')
+    .eq('business_id', businessId)
+    .order('created_at', {
+      ascending: false
+    })
+    .limit(limit);
+
+  check(error);
+
+  return list(data).map(mapSale);
+}
+
+export async function getSalesByDateRange(
+  businessId: string,
+  start: string,
+  end: string
+): Promise<Sale[]> {
+  const { data, error } = await supabase
+    .from('sales')
+    .select('*')
+    .eq('business_id', businessId)
+    .gte('created_at', start)
+    .lte('created_at', end)
+    .eq('status', 'completed')
     .order('created_at', {
       ascending: false
     });
 
-    if (error) {
-    console.error('Error fetching stock movements:', error);
-    throw error;
-  }
+  check(error);
 
-  return (data ?? []) as StockMovement[];
+  return list(data).map(mapSale);
 }
+
+export async function getSaleById(
+  id: string
+): Promise<Sale | null> {
+  const { data, error } = await supabase
+    .from('sales')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+
+  check(error);
+
+  return data ? mapSale(data) : null;
+}
+
+export async function getSaleItems(
+  id: string
+): Promise<SaleItem[]> {
+  const { data, error } = await supabase
+    .from('sale_items')
+    .select('*')
+    .eq('sale_id', id);
+
+  check(error);
+
+  return list(data).map(mapItem);
+}
+
+export async function searchSales(
+  businessId: string,
+  query: string
+): Promise<Sale[]> {
+  const term = query.toLowerCase();
+
+  return (await getSales(businessId, 1000))
+    .filter(
+      x =>
+        x.invoiceNumber.toLowerCase().includes(term) ||
+        x.customerName?.toLowerCase().includes(term)
+    )
+    .slice(0, 50);
+}
+
+export async function createPurchase(
+  purchase: Purchase,
+  items: PurchaseItem[],
+  stockMovements: StockMovement[]
+): Promise<void> {
+  const { error } = await supabase.rpc(
+    'create_purchase_atomic',
+    {
+      payload: {
+        purchase,
+        items,
+        stockMovements
+      }
+    }
+  );
+
+  check(error);
+}
+
+export async function createPurchaseReturn(
+  purchaseId: string,
+  returnedItems: {
+    productId: string;
+    productName: string;
+    quantity: number;
+    price: number;
+  }[],
+  reason: string
+): Promise<void> {
+  const { error } = await supabase.rpc(
+    'create_purchase_return_atomic',
+    {
+      purchase_id: purchaseId,
+      returned_items: returnedItems,
+      return_reason: reason
+    }
+  );
+
+  check(error);
+}
+
+export async function getPurchases(
+  businessId: string,
+  limit = 50
+): Promise<Purchase[]> {
+  const { data, error } = await supabase
+    .from('purchases')
+    .select('*')
+    .eq('business_id', businessId)
+    .order('created_at', {
+      ascending: false
+    })
+    .limit(limit);
+
+  check(error);
+
+  return list(data).map(mapPurchase);
+}
+
+export async function getPurchaseById(
+  id: string
+): Promise<Purchase | null> {
+  const { data, error } = await supabase
+    .from('purchases')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+
+  check(error);
+
+  return data ? mapPurchase(data) : null;
+}
+
+export async function getPurchaseItems(
+  id: string
+): Promise<PurchaseItem[]> {
+  const { data, error } = await supabase
+    .from('purchase_items')
+    .select('*')
+    .eq('purchase_id', id);
+
+  check(error);
+
+  return list(data).map(
+    r =>
+      ({
+        ...mapItem(r),
+        purchaseId: s(r.purchase_id),
+        productId: o(r.product_id)
+      } as PurchaseItem)
+  );
+}
+
+export async function getPurchasesBySupplier(
+  businessId: string,
+  supplierId: string
+): Promise<Purchase[]> {
+  return (await getPurchases(businessId, 1000)).filter(
+    x => x.supplierId === supplierId
+  );
+}
+
+export async function createPayment(
+  v: Payment
+): Promise<void> {
+  const { error } = await supabase.rpc(
+    'create_payment_atomic',
+    {
+      payload: v
+    }
+  );
+
+  check(error);
+}
+
+export async function getPayments(
+  businessId: string,
+  limit = 50
+): Promise<Payment[]> {
+  const { data, error } = await supabase
+    .from('payments')
+    .select('*')
+    .eq('business_id', businessId)
+    .order('created_at', {
+      ascending: false
+    })
+    .limit(limit);
+
+  check(error);
+
+  return list(data).map(mapPayment);
+}
+
+export async function getPaymentsForCustomer(
+  businessId: string,
+  customerId: string
+): Promise<Payment[]> {
+  return (await getPayments(businessId, 1000)).filter(
+    x => x.customerId === customerId
+  );
+}
+
+export async function createExpense(
+  v: Expense
+): Promise<void> {
+  const { error } = await supabase.from('expenses').insert({
+    id: v.id,
+    business_id: v.businessId,
+    title: v.title,
+    category: v.category,
+    amount: v.amount,
+    payment_method: v.paymentMethod,
+    description: v.description || null,
+    created_at: v.createdAt
+  });
+
+  check(error);
+}
+
+export async function getExpenses(
+  businessId: string,
+  limit = 50
+): Promise<Expense[]> {
+  const { data, error } = await supabase
+    .from('expenses')
+    .select('*')
+    .eq('business_id', businessId)
+    .order('created_at', {
+      ascending: false
+    })
+    .limit(limit);
+
+  check(error);
+
+  return list(data).map(mapExpense);
+}
+
+export async function getExpensesByDateRange(
+  businessId: string,
+  start: string,
+  end: string
+): Promise<Expense[]> {
+  return (await getExpenses(businessId, 10000)).filter(
+    x =>
+      x.createdAt >= start &&
+      x.createdAt <= end
+  );
+}
+
+export async function getTodayExpenses(
+  businessId: string
+): Promise<number> {
+  return (
+    await getExpensesByDateRange(
+      businessId,
+      getStartOfDay(),
+      getEndOfDay()
+    )
+  ).reduce((x, e) => x + e.amount, 0);
+}
+
+export async function getExpenseCategories(
+  businessId: string
+) {
+  return getExpenseCategoriesByMonth(
+    businessId,
+    getStartOfDay(),
+    getEndOfDay()
+  );
+}
+
+export async function getExpenseCategoriesByMonth(
+  businessId: string,
+  start: string,
+  end: string
+): Promise<
+  { category: string; amount: number }[]
+> {
+  const map = new Map<string, number>();
+
+  (
+    await getExpensesByDateRange(
+      businessId,
+      start,
+      end
+    )
+  ).forEach(x =>
+    map.set(
+      x.category,
+      (map.get(x.category) || 0) + x.amount
+    )
+  );
+
+  return [...map]
+    .map(([category, amount]) => ({
+      category,
+      amount
+    }))
+    .sort((a, b) => b.amount - a.amount);
+}
+
+export async function getInvoiceHtml(
+  saleId: string
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('invoices')
+    .select('html_content')
+    .eq('sale_id', saleId)
+    .maybeSingle();
+
+  check(error);
+
+  return data?.html_content || null;
+}
+
+export async function createBusinessSettings(
+  v: BusinessSettings
+): Promise<void> {
+  const { error } = await supabase
+    .from('business_settings')
+    .upsert(
+      {
+        id: v.id,
+        business_id: v.businessId,
+        allow_negative_stock: v.allowNegativeStock,
+        low_stock_alert_enabled:
+          v.lowStockAlertEnabled,
+        payment_reminder_enabled:
+          v.paymentReminderEnabled,
+        auto_backup_enabled:
+          v.autoBackupEnabled,
+        backup_interval: v.backupInterval,
+        last_backup_at: v.lastBackupAt || null,
+        pin_code: v.pinCode || null,
+        updated_at: v.updatedAt
+      },
+      {
+        onConflict: 'business_id'
+      }
+    );
+
+  check(error);
+}
+
+export async function getBusinessSettings(
+  id: string
+): Promise<BusinessSettings | null> {
+  const { data, error } = await supabase
+    .from('business_settings')
+    .select('*')
+    .eq('business_id', id)
+    .maybeSingle();
+
+  check(error);
+
+  return data
+    ? {
+        id: s(data.id),
+        businessId: s(data.business_id),
+        allowNegativeStock:
+          data.allow_negative_stock === true,
+        lowStockAlertEnabled:
+          data.low_stock_alert_enabled === true,
+        paymentReminderEnabled:
+          data.payment_reminder_enabled === true,
+        autoBackupEnabled:
+          data.auto_backup_enabled === true,
+        backupInterval:
+          n(data.backup_interval) || 7,
+        lastBackupAt: o(data.last_backup_at),
+        pinCode: o(data.pin_code),
+        updatedAt: s(data.updated_at)
+      }
+    : null;
+}
+
+export async function updateBusinessSettings(
+  v: BusinessSettings
+): Promise<void> {
+  const { error } = await supabase
+    .from('business_settings')
+    .update({
+      allow_negative_stock: v.allowNegativeStock,
+      low_stock_alert_enabled:
+        v.lowStockAlertEnabled,
+      payment_reminder_enabled:
+        v.paymentReminderEnabled,
+      auto_backup_enabled:
+        v.autoBackupEnabled,
+      backup_interval: v.backupInterval,
+      last_backup_at: v.lastBackupAt || null,
+      pin_code: v.pinCode || null,
+      updated_at: v.updatedAt
+    })
+    .eq('business_id', v.businessId);
+
+  check(error);
+}
+
+export async function createBackupRecord(
+  v: BackupRecord
+): Promise<void> {
+  const { error } = await supabase
+    .from('backup_records')
+    .insert({
+      id: v.id,
+      business_id: v.businessId,
+      type: v.type,
+      data_size: v.dataSize,
+      created_at: v.createdAt,
+      status: v.status,
+      error_message: v.errorMessage || null
+    });
+
+  check(error);
+
+  const settings =
+    await getBusinessSettings(v.businessId);
+
+  if (settings) {
+    await updateBusinessSettings({
+      ...settings,
+      lastBackupAt: v.createdAt
+    });
+  }
+}
+
+export async function getLastBackupRecord(
+  id: string
+): Promise<BackupRecord | null> {
+  const { data, error } = await supabase
+    .from('backup_records')
+    .select('*')
+    .eq('business_id', id)
+    .order('created_at', {
+      ascending: false
+    })
+    .limit(1)
+    .maybeSingle();
+
+  check(error);
+
+  return data
+    ? {
+        id: s(data.id),
+        businessId: s(data.business_id),
+        type: data.type,
+        dataSize: n(data.data_size),
+        createdAt: s(data.created_at),
+        status: data.status,
+        errorMessage: o(data.error_message)
+      }
+    : null;
+}
+
+export async function getDashboardStats(
+  businessId: string
+): Promise<DashboardStats> {
+  const [
+    sales,
+    purchases,
+    expenses,
+    customers,
+    products
+  ] = await Promise.all([
+    getSalesByDateRange(
+      businessId,
+      getStartOfDay(),
+      getEndOfDay()
+    ),
+    getPurchases(businessId, 10000),
+    getExpensesByDateRange(
+      businessId,
+      getStartOfDay(),
+      getEndOfDay()
+    ),
+    getCustomers(businessId),
+    stockProducts(businessId)
+  ]);
+
+  const expenseTotal = expenses.reduce(
+    (x, e) => x + e.amount,
+    0
+  );
+
+  const todayPurchases = purchases.filter(
+    x =>
+      x.createdAt >= getStartOfDay() &&
+      x.createdAt <= getEndOfDay()
+  );
+
+  return {
+    todaySales: sales.reduce(
+      (x, s) => x + s.total,
+      0
+    ),
+    todayBills: sales.length,
+    todayExpenses: expenseTotal,
+    todayCash:
+      sales
+        .filter(
+          x =>
+            x.paymentMethod === 'cash' ||
+            x.paymentMethod === 'mixed'
+        )
+        .reduce((x, s) => x + s.paid, 0) -
+      expenseTotal,
+    totalReceivables: sales.reduce(
+      (x, s) => x + s.due,
+      0
+    ),
+    lowStockCount: products.filter(
+      x =>
+        x.currentStock > 0 &&
+        x.currentStock <= x.minStockLevel
+    ).length,
+    outOfStockCount: products.filter(
+      x => x.currentStock <= 0
+    ).length,
+    currentBalance: customers.reduce(
+      (x, c) => x + c.balance,
+      0
+    ),
+    todayPurchases: todayPurchases.reduce(
+      (x, p) => x + p.total,
+      0
+    ),
+    estimatedProfit: 0
+  };
+}
+
+export async function getRecentTransactions(
+  businessId: string
+): Promise<RecentTransaction[]> {
+  const [
+    sales,
+    payments,
+    expenses
+  ] = await Promise.all([
+    getSalesByDateRange(
+      businessId,
+      getStartOfDay(),
+      getEndOfDay()
+    ),
+    getPayments(businessId),
+    getExpensesByDateRange(
+      businessId,
+      getStartOfDay(),
+      getEndOfDay()
+    )
+  ]);
+
+  return [
+    ...sales.map(x => ({
+      id: x.id,
+      type: 'sale' as const,
+      description: `Sale ${x.invoiceNumber}`,
+      amount: x.total,
+      date: x.createdAt
+    })),
+
+    ...payments
+      .filter(
+        x => x.createdAt >= getStartOfDay()
+      )
+      .map(x => ({
+        id: x.id,
+        type: 'payment' as const,
+        description: 'Payment Received',
+        amount: x.amount,
+        date: x.createdAt
+      })),
+
+    ...expenses.map(x => ({
+      id: x.id,
+      type: 'expense' as const,
+      description: x.title,
+      amount: x.amount,
+      date: x.createdAt
+    }))
+  ]
+    .sort((a, b) =>
+      b.date.localeCompare(a.date)
+    )
+    .slice(0, 10);
+}
+
+export async function getUnifiedTransactions(
+  businessId: string,
+  limit = 100
+): Promise<UnifiedTransaction[]> {
+  const [
+    sales,
+    purchases,
+    payments,
+    expenses
+  ] = await Promise.all([
+    getSales(businessId, limit),
+    getPurchases(businessId, limit),
+    getPayments(businessId, limit),
+    getExpenses(businessId, limit)
+  ]);
+
+  return [
+    ...sales.map(x => ({
+      id: x.id,
+      type: 'sale' as const,
+      description: `Sale ${x.invoiceNumber}`,
+      amount: x.total,
+      date: x.createdAt,
+      referenceId: x.id,
+      entityName: x.customerName,
+      debit: 0,
+      credit: x.total
+    })),
+
+    ...purchases.map(x => ({
+      id: x.id,
+      type: 'purchase' as const,
+      description: `Purchase ${x.invoiceNumber}`,
+      amount: x.total,
+      date: x.createdAt,
+      referenceId: x.id,
+      entityName: x.supplierName,
+      debit: x.total,
+      credit: 0
+    })),
+
+    ...payments.map(x => ({
+      id: x.id,
+      type: x.customerId
+        ? ('customer_payment' as const)
+        : ('supplier_payment' as const),
+      description: x.customerId
+        ? 'Customer Payment'
+        : 'Supplier Payment',
+      amount: x.amount,
+      date: x.createdAt,
+      debit: x.supplierId ? x.amount : 0,
+      credit: x.customerId ? x.amount : 0
+    })),
+
+    ...expenses.map(x => ({
+      id: x.id,
+      type: 'expense' as const,
+      description: x.title,
+      amount: x.amount,
+      date: x.createdAt,
+      debit: x.amount,
+      credit: 0
+    }))
+  ]
+    .sort((a, b) =>
+      b.date.localeCompare(a.date)
+    )
+    .slice(0, limit);
+}
+
+export async function getSalesReport(
+  businessId: string,
+  start: string,
+  end: string
+): Promise<SalesReport> {
+  const sales =
+    await getSalesByDateRange(
+      businessId,
+      start,
+      end
+    );
+
+  const total = sales.reduce(
+    (x, s) => x + s.total,
+    0
+  );
+
+  return {
+    totalSales: total,
+    totalBills: sales.length,
+    totalItems: (
+      await Promise.all(
+        sales.map(x => getSaleItems(x.id))
+      )
+    )
+      
