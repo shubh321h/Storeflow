@@ -79,10 +79,44 @@ export default function ProductsScreen({ navigation, route }: ProductsScreenProp
   ];
 
 const handleBarcodeScanned = useCallback(
-  (barcode: string, metadata?: FoodProductMetadata) => {
+  (
+    barcode: string,
+    scannedProduct?: Product | null,
+    metadata?: FoodProductMetadata
+  ) => {
     if (!barcode) return;
 
+    // Product already exists in StoreFlow
+    if (scannedProduct) {
+      setEditingProduct(scannedProduct);
+
+      setFormName(scannedProduct.name || '');
+      setFormBarcode(scannedProduct.barcode || barcode);
+      setFormSku(scannedProduct.sku || '');
+      setFormCategory(scannedProduct.categoryName || '');
+      setFormBrand(scannedProduct.brand || '');
+      setFormPurchasePrice(String(scannedProduct.purchasePrice ?? ''));
+      setFormSellingPrice(String(scannedProduct.sellingPrice ?? ''));
+      setFormMrp(
+        scannedProduct.mrp !== undefined
+          ? String(scannedProduct.mrp)
+          : ''
+      );
+      setFormTaxRate(String(scannedProduct.taxRate ?? 0));
+      setFormUnit(scannedProduct.unit || 'Piece');
+      setFormStock(String(scannedProduct.currentStock ?? 0));
+      setFormMinStock(String(scannedProduct.minStockLevel ?? 0));
+      setFormSupplier(scannedProduct.supplierName || '');
+      setFormNotes(scannedProduct.notes || '');
+
+      setShowAddModal(true);
+      return;
+    }
+
+    // Product not in StoreFlow but found through API
     setEditingProduct(null);
+
+    resetForm();
     setFormBarcode(barcode);
 
     if (metadata) {
@@ -90,7 +124,6 @@ const handleBarcodeScanned = useCallback(
       setFormBrand(metadata.brand || '');
       setFormCategory(metadata.category || '');
 
-      // Try to detect the most appropriate unit
       const quantity = (metadata.quantity || '').toLowerCase();
 
       if (quantity.includes('kg')) {
@@ -106,9 +139,6 @@ const handleBarcodeScanned = useCallback(
       } else {
         setFormUnit('Piece');
       }
-    } else {
-      resetForm();
-      setFormBarcode(barcode);
     }
 
     setShowAddModal(true);
