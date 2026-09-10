@@ -190,13 +190,6 @@ const handleBarcodeScanned = useCallback(
   navigation,
   handleBarcodeScanned,
 ]);
-     [
-  route.params?.newBill,
-  route.params?.barcode,
-  route.params?.scannedProduct,
-  route.params?.externalProductMetadata,
-  handleBarcodeScanned,
-]);
 const loadData = useCallback(async () => {
   if (!business?.id) {
     setProducts([]);
