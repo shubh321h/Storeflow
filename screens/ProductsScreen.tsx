@@ -491,9 +491,39 @@ const loadData = useCallback(async () => {
     );
   }
 
-  if (loading) return <LoadingState />;
+if (loading) {
+  return <LoadingState />;
+}
 
+if (error) {
   return (
+    <View style={COMMON_STYLES.screen}>
+      <AppHeader title="Products" />
+
+      <View style={styles.errorContainer}>
+        <Ionicons
+          name="alert-circle-outline"
+          size={48}
+          color={COLORS.error}
+        />
+
+        <Text style={styles.errorTitle}>
+          Unable to load products
+        </Text>
+
+        <Text style={styles.errorMessage}>
+          {error}
+        </Text>
+
+        <PrimaryButton
+          title="Retry"
+          onPress={loadData}
+        />
+      </View>
+    </View>
+  );
+}
+ return (
     <View style={COMMON_STYLES.screen}>
       <AppHeader
         title="Products"
