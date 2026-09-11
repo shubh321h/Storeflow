@@ -68,11 +68,14 @@ export default function BarcodeScannerScreen({
       mounted = false;
     };
   }, []);
+
 async function handleBarcodeScanned({ data }: { data: string }) {
   if (scanned || processing) return;
 
   setScanned(true);
   setProcessing(true);
+
+  const barcode = String(data).trim();
 
   if (!business) {
     Alert.alert('Error', 'No business selected');
@@ -82,11 +85,27 @@ async function handleBarcodeScanned({ data }: { data: string }) {
   }
 
   try {
-    // 1. Search StoreFlow database first
-    const product = await getProductByBarcode(business.id, data);
+    console.log('BARCODE SCANNED:', barcode);
+
+    // =====================================================
+    // 1. EXISTING STOREFLOW DATABASE LOOKUP
+    // =====================================================
+    const product = await getProductByBarcode(
+      business.id,
+      barcode
+    );
+
+    console.log(
+      'STOREFLOW PRODUCT RESULT:',
+      product
+    );
 
     if (product) {
-      // Existing product found in StoreFlow
+      console.log(
+        'PRODUCT FOUND IN STOREFLOW:',
+        barcode
+      );
+
       if (fromScreen === 'Billing') {
         navigation.navigate('MainTabs', {
           screen: 'Billing',
@@ -98,7 +117,7 @@ async function handleBarcodeScanned({ data }: { data: string }) {
         navigation.navigate('MainTabs', {
           screen: 'Products',
           params: {
-            barcode: data,
+            barcode,
             scannedProduct: product,
           },
         });
@@ -107,50 +126,90 @@ async function handleBarcodeScanned({ data }: { data: string }) {
       return;
     }
 
-    // 2. Not found locally -> search Open Food Facts
-    const externalMetadata: FoodProductMetadata | null =
-      await getFoodProductByBarcode(data);
+    // =====================================================
+    // 2. OPEN FOOD FACTS LOOKUP
+    // =====================================================
+    console.log(
+      'NOT FOUND LOCALLY. CHECKING OPEN FOOD FACTS:',
+      barcode
+    );
+
+    const externalMetadata =
+      await getFoodProductByBarcode(barcode);
+
+    console.log(
+      'OPEN FOOD FACTS RESULT:',
+      externalMetadata
+    );
 
     if (externalMetadata) {
+      console.log(
+        'PRODUCT FOUND IN OPEN FOOD FACTS:',
+        barcode
+      );
+
+      /*
+       * Send metadata to Products.
+       *
+       * We DO NOT automatically create stock.
+       * User can review/edit product information first.
+       */
       navigation.navigate('MainTabs', {
         screen: 'Products',
         params: {
-          barcode: data,
+          barcode,
           externalProductMetadata: externalMetadata,
         },
       });
 
       return;
     }
-    const metadata = await lookupBarcodeMetadata(data);
 
-if (metadata) {
-  navigation.navigate('Products', {
-    scannedBarcode: data,
-    barcodeMetadata: metadata,
-  });
-} else {
-  navigation.navigate('Products', {
-    scannedBarcode: data,
-  });
-}
+    // =====================================================
+    // 3. EXISTING OTHER METADATA METHOD
+    // =====================================================
+    console.log(
+      'OPEN FOOD FACTS DID NOT FIND PRODUCT.'
+    );
 
-    // 3. Nothing found -> open manual Add Product form
-    if (mode === 'add') {
+    const metadata =
+      await lookupBarcodeMetadata(barcode);
+
+    console.log(
+      'SECOND METADATA RESULT:',
+      metadata
+    );
+
+    if (metadata) {
       navigation.navigate('MainTabs', {
         screen: 'Products',
         params: {
-          barcode: data,
+          scannedBarcode: barcode,
+          barcodeMetadata: metadata,
         },
       });
 
       return;
     }
 
-    // 4. Normal scan mode -> ask whether to add product
+    // =====================================================
+    // 4. NOTHING FOUND
+    // =====================================================
+
+    if (mode === 'add') {
+      navigation.navigate('MainTabs', {
+        screen: 'Products',
+        params: {
+          barcode,
+        },
+      });
+
+      return;
+    }
+
     Alert.alert(
       'Product Not Found',
-      `No product found with barcode ${data}. Would you like to add it?`,
+      `No product metadata was found for barcode ${barcode}. Would you like to add it manually?`,
       [
         {
           text: 'Cancel',
@@ -166,19 +225,23 @@ if (metadata) {
             navigation.navigate('MainTabs', {
               screen: 'Products',
               params: {
-                barcode: data,
+                barcode,
               },
             });
           },
         },
-      ],
+      ]
     );
-  } catch (error) {
-    console.error('Barcode product lookup error:', error);
+  } catch (error: any) {
+    console.error(
+      'BARCODE LOOKUP ERROR:',
+      error
+    );
 
     Alert.alert(
-      'Error',
-      'Failed to search for product',
+      'Barcode Lookup Error',
+      error?.message ||
+        'Failed to search for product.',
       [
         {
           text: 'OK',
@@ -187,13 +250,12 @@ if (metadata) {
             setProcessing(false);
           },
         },
-      ],
+      ]
     );
   } finally {
     setProcessing(false);
   }
 }
-
 
   if (hasPermission === null) {
     return (
