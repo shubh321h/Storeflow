@@ -108,6 +108,10 @@ export function roundTo2(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
+export function normalizeBarcode(value: string): string {
+  return value.trim().replace(/\s+/g, '');
+}
+
 export function generateInvoiceNumber(prefix: string, nextNumber: number): string {
   return `${prefix}-${String(nextNumber).padStart(4, '0')}`;
 }

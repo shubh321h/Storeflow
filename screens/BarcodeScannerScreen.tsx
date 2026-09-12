@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useBusiness } from '../context/BusinessContext';
 import { getProductByBarcode } from '../lib/database';
 import { lookupBarcodeMetadata } from '../lib/barcodeMetadata';
+import { normalizeBarcode } from '../lib/utils';
 import {
   getFoodProductByBarcode,
   FoodProductMetadata,
@@ -75,7 +76,7 @@ async function handleBarcodeScanned({ data }: { data: string }) {
   setScanned(true);
   setProcessing(true);
 
-  const barcode = String(data).trim();
+  const barcode = normalizeBarcode(String(data));
 
   if (!business) {
     Alert.alert('Error', 'No business selected');

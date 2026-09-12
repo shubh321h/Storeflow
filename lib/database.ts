@@ -25,7 +25,7 @@ import {
   ExpenseReport
 } from './types';
 
-import { generateId, getStartOfDay, getEndOfDay } from './utils';
+import { generateId, getStartOfDay, getEndOfDay, normalizeBarcode } from './utils';
 import { supabase } from '../supabase';
 
 type Row = Record<string, any>;
@@ -692,13 +692,15 @@ export async function updateSupplierBalance(
 export async function createProduct(
   v: Product
 ): Promise<void> {
+  const normalizedBarcode = normalizeBarcode(v.barcode || '').trim();
+
   const { error } = await supabase
     .from('products')
     .insert({
       id: v.id,
       business_id: v.businessId,
       name: v.name,
-      barcode: v.barcode || null,
+      barcode: normalizedBarcode || null,
       sku: v.sku || null,
       category_id: v.categoryId || null,
       brand: v.brand || null,
@@ -720,29 +722,31 @@ export async function createProduct(
 
   check(error);
 
-const result = await supabase
-  .from('inventory')
-  .upsert(
-    {
-      product_id: v.id,
-      business_id: v.businessId,
-      current_stock: Number(v.currentStock) || 0
-    },
-    {
-      onConflict: 'business_id,product_id'
-    }
-  );
+  const result = await supabase
+    .from('inventory')
+    .upsert(
+      {
+        product_id: v.id,
+        business_id: v.businessId,
+        current_stock: Number(v.currentStock) || 0
+      },
+      {
+        onConflict: 'product_id'
+      }
+    );
   check(result.error);
 }
 
 export async function updateProduct(
   v: Product
 ): Promise<void> {
+  const normalizedBarcode = normalizeBarcode(v.barcode || '').trim();
+
   const { error } = await supabase
     .from('products')
     .update({
       name: v.name,
-      barcode: v.barcode || null,
+      barcode: normalizedBarcode || null,
       sku: v.sku || null,
       category_id: v.categoryId || null,
       brand: v.brand || null,
@@ -822,9 +826,12 @@ export async function getProductByBarcode(
   businessId: string,
   barcode: string
 ): Promise<Product | null> {
+  const normalized = normalizeBarcode(barcode);
+  const products = await stockProducts(businessId);
+
   return (
-    (await stockProducts(businessId)).find(
-      (p) => p.barcode === barcode
+    products.find((p) =>
+      normalizeBarcode(p.barcode || '') === normalized
     ) || null
   );
 }
@@ -862,7 +869,7 @@ export async function updateProductStock(
         updated_at: new Date().toISOString()
       },
       {
-        onConflict: 'business_id,product_id'
+        onConflict: 'product_id'
       }
     );
 

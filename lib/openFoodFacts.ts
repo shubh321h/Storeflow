@@ -113,10 +113,10 @@ export async function getFoodProductByBarcode(
 
   const encodedBarcode = encodeURIComponent(cleanBarcode);
 
-  // 1. Open Food Facts
-  // Food, grocery and packaged FMCG products.
+  // 1. India Open Food Facts first for the intended regional feed.
+  // Then fall back to the world feeds for products not present in India.
   const foodProduct = await lookupFactsDatabase(
-    `https://world.openfoodfacts.org/api/v3/product/${encodedBarcode}?fields=code,product_name,product_name_en,generic_name,brands,categories,categories_tags,image_front_url,image_url,quantity`,
+    `https://in.openfoodfacts.org/api/v3/product/${encodedBarcode}?fields=code,product_name,product_name_en,generic_name,brands,categories,categories_tags,image_front_url,image_url,quantity`,
     cleanBarcode,
     'openfoodfacts'
   );
@@ -125,10 +125,20 @@ export async function getFoodProductByBarcode(
     return foodProduct;
   }
 
+  const worldFoodProduct = await lookupFactsDatabase(
+    `https://world.openfoodfacts.org/api/v3/product/${encodedBarcode}?fields=code,product_name,product_name_en,generic_name,brands,categories,categories_tags,image_front_url,image_url,quantity`,
+    cleanBarcode,
+    'openfoodfacts'
+  );
+
+  if (worldFoodProduct) {
+    return worldFoodProduct;
+  }
+
   // 2. Open Beauty Facts
   // Personal care, hygiene and cosmetic products.
   const beautyProduct = await lookupFactsDatabase(
-    `https://world.openbeautyfacts.org/api/v3/product/${encodedBarcode}?fields=code,product_name,product_name_en,generic_name,brands,categories,categories_tags,image_front_url,image_url,quantity`,
+    `https://in.openbeautyfacts.org/api/v3/product/${encodedBarcode}?fields=code,product_name,product_name_en,generic_name,brands,categories,categories_tags,image_front_url,image_url,quantity`,
     cleanBarcode,
     'openbeautyfacts'
   );
@@ -137,16 +147,36 @@ export async function getFoodProductByBarcode(
     return beautyProduct;
   }
 
+  const worldBeautyProduct = await lookupFactsDatabase(
+    `https://world.openbeautyfacts.org/api/v3/product/${encodedBarcode}?fields=code,product_name,product_name_en,generic_name,brands,categories,categories_tags,image_front_url,image_url,quantity`,
+    cleanBarcode,
+    'openbeautyfacts'
+  );
+
+  if (worldBeautyProduct) {
+    return worldBeautyProduct;
+  }
+
   // 3. Open Products Facts
   // Household and other non-food products.
   const productsProduct = await lookupFactsDatabase(
-    `https://world.openproductsfacts.org/api/v3/product/${encodedBarcode}?fields=code,product_name,product_name_en,generic_name,brands,categories,categories_tags,image_front_url,image_url,quantity`,
+    `https://in.openproductsfacts.org/api/v3/product/${encodedBarcode}?fields=code,product_name,product_name_en,generic_name,brands,categories,categories_tags,image_front_url,image_url,quantity`,
     cleanBarcode,
     'openproductsfacts'
   );
 
   if (productsProduct) {
     return productsProduct;
+  }
+
+  const worldProductsProduct = await lookupFactsDatabase(
+    `https://world.openproductsfacts.org/api/v3/product/${encodedBarcode}?fields=code,product_name,product_name_en,generic_name,brands,categories,categories_tags,image_front_url,image_url,quantity`,
+    cleanBarcode,
+    'openproductsfacts'
+  );
+
+  if (worldProductsProduct) {
+    return worldProductsProduct;
   }
 
   // Product not found in any external database.

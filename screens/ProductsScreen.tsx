@@ -464,6 +464,12 @@ const debouncedSearch = useCallback(
     }
 
     try {
+      await updateProductStock(
+        selectedProduct.id,
+        business.id,
+        newQty
+      );
+
       await createStockMovement({
         id: generateId(),
         businessId: business.id,
@@ -476,11 +482,7 @@ const debouncedSearch = useCallback(
         reason: stockAdjustmentReason || undefined,
         createdAt: new Date().toISOString(),
       });
-      await updateProductStock(
-  selectedProduct.id,
-  business.id,
-  newQty
-);
+
       setShowStockModal(false);
       setSelectedProduct(null);
       loadData();
