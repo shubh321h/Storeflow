@@ -720,14 +720,18 @@ export async function createProduct(
 
   check(error);
 
-  const result = await supabase
-    .from('inventory')
-    .insert({
+const result = await supabase
+  .from('inventory')
+  .upsert(
+    {
       product_id: v.id,
       business_id: v.businessId,
-      current_stock: v.currentStock
-    });
-
+      current_stock: Number(v.currentStock) || 0
+    },
+    {
+      onConflict: 'business_id,product_id'
+    }
+  );
   check(result.error);
 }
 
@@ -854,11 +858,11 @@ export async function updateProductStock(
       {
         product_id: id,
         business_id: businessId,
-        current_stock: value,
+        current_stock: Number(value) || 0,
         updated_at: new Date().toISOString()
       },
       {
-        onConflict: 'product_id'
+        onConflict: 'business_id,product_id'
       }
     );
 
