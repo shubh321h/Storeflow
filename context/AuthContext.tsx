@@ -2,12 +2,15 @@ import React, { createContext, useContext, useEffect, useState, ReactNode } from
 import { AuthError, User as SupabaseUser } from '@supabase/supabase-js';
 import { supabase } from '../supabase';
 import { User } from '../lib/types';
+import * as WebBrowser from 'expo-web-browser';
+import * as AuthSession from 'expo-auth-session';
 
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   register: (name: string, email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+ loginWithGoogle: () => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
 }
 
@@ -95,13 +98,90 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return { success: false, error: error instanceof Error ? error.message : 'Something went wrong. Please try again.' };
     }
   }
+    async function loginWithGoogle() {
+  try {
+    const redirectTo = AuthSession.makeRedirectUri({
+      scheme: 'storeflow',
+      path: 'auth/callback',
+    });
+
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo,
+        skipBrowserRedirect: true,
+      },
+    });
+
+    if (error) {
+      return { success: false, error: authErrorMessage(error) };
+    }
+
+    if (!data?.url) {
+      return { success: false, error: 'Unable to start Google sign-in.' };
+    }
+
+    const result = await WebBrowser.openAuthSessionAsync(
+      data.url,
+      redirectTo
+    );
+
+    if (result.type !== 'success' || !result.url) {
+      if (result.type === 'cancel' || result.type === 'dismiss') {
+        return { success: false, error: 'Google sign-in was cancelled.' };
+      }
+
+      return { success: false, error: 'Google sign-in failed.' };
+    }
+
+    const url = new URL(result.url);
+    const code = url.searchParams.get('code');
+
+    if (!code) {
+      return { success: false, error: 'Google sign-in did not return a session.' };
+    }
+
+    const { error: exchangeError } =
+      await supabase.auth.exchangeCodeForSession(code);
+
+    if (exchangeError) {
+      return {
+        success: false,
+        error: authErrorMessage(exchangeError),
+      };
+    }
+
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Google sign-in failed. Please try again.',
+    };
+  }
+    }
 
   async function logout() {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
   }
 
-  return <AuthContext.Provider value={{ user, isLoading, login, register, logout }}>{children}</AuthContext.Provider>;
+  return (
+  <AuthContext.Provider
+    value={{
+      user,
+      isLoading,
+      login,
+      loginWithGoogle,
+      register,
+      logout,
+    }}
+  >
+    {children}
+  </AuthContext.Provider>
+);
 }
 
 export function useAuth() {
