@@ -17,7 +17,7 @@ export default function LoginScreen({ onNavigate }: LoginScreenProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, loginWithGoogle } = useAuth();
 
   async function handleLogin() {
     setError('');
@@ -31,6 +31,18 @@ export default function LoginScreen({ onNavigate }: LoginScreenProps) {
     if (!result.success) {
       setError(result.error || 'Login failed');
     }
+  }
+  async function handleGoogleLogin() {
+  setError('');
+  setLoading(true);
+
+  const result = await loginWithGoogle();
+
+  setLoading(false);
+
+  if (!result.success) {
+    setError(result.error || 'Google sign-in failed');
+  }
   }
 
   return (
@@ -92,6 +104,21 @@ export default function LoginScreen({ onNavigate }: LoginScreenProps) {
               <Text style={styles.loginButtonText}>Sign In</Text>
             )}
           </TouchableOpacity>
+          <View style={styles.orContainer}>
+  <View style={styles.orLine} />
+  <Text style={styles.orText}>OR</Text>
+  <View style={styles.orLine} />
+</View>
+
+<TouchableOpacity
+  style={[styles.googleButton, loading && styles.disabled]}
+  onPress={handleGoogleLogin}
+  disabled={loading}
+>
+  <Ionicons name="logo-google" size={20} color="#4285F4" />
+  <Text style={styles.googleButtonText}>Continue with Google</Text>
+</TouchableOpacity>
+          
         </View>
 
         <View style={styles.footer}>
@@ -211,4 +238,40 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     fontWeight: '700',
   },
+  orContainer: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  marginVertical: SPACING.lg,
+},
+
+orLine: {
+  flex: 1,
+  height: 1,
+  backgroundColor: COLORS.border,
+},
+
+orText: {
+  marginHorizontal: SPACING.md,
+  color: COLORS.textSecondary,
+  fontSize: FONT_SIZE.sm,
+  fontWeight: '600',
+},
+
+googleButton: {
+  height: 52,
+  borderRadius: BORDER_RADIUS.md,
+  borderWidth: 1,
+  borderColor: COLORS.border,
+  backgroundColor: COLORS.surface,
+  flexDirection: 'row',
+  justifyContent: 'center',
+  alignItems: 'center',
+  gap: SPACING.sm,
+},
+
+googleButtonText: {
+  color: COLORS.textPrimary,
+  fontSize: FONT_SIZE.md,
+  fontWeight: '600',
+},
 });
