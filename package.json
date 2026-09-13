@@ -13,6 +13,7 @@
     "date-fns": "^4.4.0",
     "expo": "~57.0.22",
     "expo-asset": "^57.0.15",
+    "expo-auth-session": "~57.0.12",
     "expo-camera": "~57.0.5",
     "expo-constants": "^57.0.16",
     "expo-font": "^57.0.3",
