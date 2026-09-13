@@ -252,11 +252,30 @@ export default function BillingScreen({ navigation, route }: BillingScreenProps)
 
     setProcessing(true);
     try {
+      const refreshedCart = await Promise.all(
+        cart.map(async (item) => {
+          const latestProduct = await getProductById(item.product.id);
+          if (!latestProduct) {
+            throw new Error(`Product ${item.product.name} is no longer available.`);
+          }
+          if (latestProduct.currentStock < item.quantity) {
+            throw new Error(`Insufficient stock for ${item.product.name}. Only ${latestProduct.currentStock} available.`);
+          }
+          return {
+            ...item,
+            product: {
+              ...item.product,
+              currentStock: latestProduct.currentStock,
+            }
+          } as CartItem;
+        })
+      );
+
       const invoiceNumber = generateInvoiceNumber(business.invoicePrefix, business.invoiceNextNumber);
       const saleId = generateId();
       const now = new Date().toISOString();
 
-      const saleItems: SaleItem[] = cart.map(item => {
+      const saleItems: SaleItem[] = refreshedCart.map(item => {
         const itemTax = calculateTax(item.price * item.quantity - item.discount, item.product.taxRate);
         return {
           id: generateId(),
@@ -295,7 +314,7 @@ export default function BillingScreen({ navigation, route }: BillingScreenProps)
         createdAt: now,
       };
 
-      const stockMovements: StockMovement[] = cart.map(item => ({
+      const stockMovements: StockMovement[] = refreshedCart.map(item => ({
         id: generateId(),
         businessId: business.id,
         productId: item.product.id,
@@ -351,7 +370,8 @@ export default function BillingScreen({ navigation, route }: BillingScreenProps)
       setShowPaymentModal(false);
       setShowInvoicePreview(true);
     } catch (e) {
-      Alert.alert('Error', 'Failed to complete sale. Please check stock and try again.');
+      const message = e instanceof Error && e.message ? e.message : 'Failed to complete sale. Please check stock and try again.';
+      Alert.alert('Error', message);
       console.error('Sale error', e);
     } finally {
       setProcessing(false);

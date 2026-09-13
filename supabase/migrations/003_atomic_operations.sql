@@ -176,7 +176,10 @@ begin
     end if;
 
 
-    -- Lock the correct business inventory row
+    -- Lock the correct business inventory row and use the database's
+    -- inventory row as the source of truth instead of trusting a stale
+    -- cart snapshot. This prevents false "Failed to complete sale"
+    -- errors when product stock changed after the user loaded the cart.
     select current_stock
     into current_qty
     from public.inventory
@@ -184,31 +187,21 @@ begin
       and business_id = target_business_id
     for update;
 
-
     if current_qty is null then
       raise exception 'Product inventory not found';
     end if;
 
-
-    -- Prevent stale stock
-    if current_qty <> previous_qty then
-      raise exception 'Product stock changed; retry sale';
-    end if;
-
-
-    -- Verify mathematical correctness
+    -- Verify mathematical correctness against the authoritative inventory row.
     if new_qty <> current_qty + change_qty then
       raise exception 'Invalid stock movement';
     end if;
 
-
-    -- Sales must not create negative stock
+    -- Sales must not create negative stock.
     if new_qty < 0 then
       raise exception 'Insufficient stock';
     end if;
 
-
-    -- Update only this business's inventory
+    -- Update only this business's inventory.
     update public.inventory
     set
       current_stock = new_qty,
