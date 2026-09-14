@@ -9,7 +9,7 @@ export interface FoodProductMetadata {
 }
 
 interface FactsProductResponse {
-  status?: number;
+  status: number | string;
   product?: {
     code?: string;
     product_name?: string;
@@ -29,7 +29,13 @@ function normalizeProduct(
   barcode: string,
   source: FoodProductMetadata['source']
 ): FoodProductMetadata | null {
-  if (data.status !== 1 || !data.product) {
+  const isFoundStatus =
+    data.status === 1 ||
+    data.status === 'success' ||
+    data.status === 'success_with_warnings' ||
+    data.status === 'success_with_errors';
+
+  if (!isFoundStatus || !data.product) {
     return null;
   }
 
