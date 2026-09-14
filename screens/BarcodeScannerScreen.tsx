@@ -182,15 +182,15 @@ async function handleBarcodeScanned({ data }: { data: string }) {
     );
 
     if (metadata) {
-      navigation.navigate('MainTabs', {
-        screen: 'Products',
-        params: {
-          scannedBarcode: barcode,
-          barcodeMetadata: metadata,
-        },
-      });
+  navigation.navigate('MainTabs', {
+    screen: 'Products',
+    params: {
+      barcode,
+      externalProductMetadata: metadata,
+    },
+  });
 
-      return;
+  return;
     }
 
     // =====================================================
