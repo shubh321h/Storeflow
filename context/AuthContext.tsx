@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { AuthError, User as SupabaseUser } from '@supabase/supabase-js';
+import { Linking } from 'react-native';
 import { supabase } from '../supabase';
 import { User } from '../lib/types';
 import * as WebBrowser from 'expo-web-browser';
@@ -15,6 +16,10 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const AUTH_REDIRECT_TO = AuthSession.makeRedirectUrl({
+  scheme: 'storeflow',
+  path: 'auth/callback',
+});
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -86,11 +91,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function register(name: string, email: string, password: string) {
     if (password.length < 6) return { success: false, error: 'Password must be at least 6 characters.' };
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email: email.toLowerCase().trim(),
-        password,
-        options: { data: { name: name.trim() } },
-      });
+      
+   const { data, error } = await supabase.auth.signUp({
+   email: email.toLowerCase().trim(),
+   password,
+   options: {
+    emailRedirectTo: AUTH_REDIRECT_TO,
+    data: { name: name.trim() },
+  },
+     });
       if (error) return { success: false, error: authErrorMessage(error) };
       if (!data.session) return { success: false, error: 'Please confirm your email before signing in.' };
       return { success: true };
