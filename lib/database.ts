@@ -26,7 +26,7 @@ import {
 } from './types';
 
 import { generateId, getStartOfDay, getEndOfDay, normalizeBarcode } from './utils';
-import { supabase } from '../supabase';
+import { supabase } from './supabase';
 
 type Row = Record<string, any>;
 
