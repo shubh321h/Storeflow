@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { Linking } from 'react-native';
 import { AuthError, User as SupabaseUser } from '@supabase/supabase-js';
-import { supabase } from '../supabase';
+import { supabase } from '../lib/supabase';
 import { User } from '../lib/types';
 import * as WebBrowser from 'expo-web-browser';
 import * as AuthSession from 'expo-auth-session';
