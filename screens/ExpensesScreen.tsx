@@ -5,8 +5,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useBusiness } from '../context/BusinessContext';
-import { getExpenses, createExpense } from '../lib/database';
-import { Expense } from '../lib/types';
+import { getExpenses, createExpense, getSuppliers, stockProducts } from '../lib/database';
+import { Expense, Supplier, Product } from '../lib/types';
 import { generateId } from '../lib/utils';
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOW, COMMON_STYLES } from '../lib/theme';
 import AppHeader from '../components/AppHeader';
@@ -31,13 +31,29 @@ export default function ExpensesScreen({ navigation, route }: ExpensesScreenProp
   const [description, setDescription] = useState('');
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
 
+  // Optional link so a "product-related expense" is attributable and, when
+  // a supplier is chosen, the supplier's balance updates immediately.
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [linkedSupplier, setLinkedSupplier] = useState<Supplier | null>(null);
+  const [linkedProduct, setLinkedProduct] = useState<Product | null>(null);
+  const [showSupplierPicker, setShowSupplierPicker] = useState(false);
+  const [showProductPicker, setShowProductPicker] = useState(false);
+  const [productSearch, setProductSearch] = useState('');
+
   const categories = ['Rent', 'Electricity', 'Staff Salary', 'Transport', 'Maintenance', 'Marketing', 'Packaging', 'Other'];
 
   async function loadData() {
     if (!business) return;
     try {
-      const data = await getExpenses(business.id);
+      const [data, supplierList, productList] = await Promise.all([
+        getExpenses(business.id),
+        getSuppliers(business.id),
+        stockProducts(business.id),
+      ]);
       setExpenses(data);
+      setSuppliers(supplierList);
+      setProducts(productList);
     } catch (e) {
       console.error('Expenses load error', e);
     } finally {
@@ -81,6 +97,10 @@ export default function ExpensesScreen({ navigation, route }: ExpensesScreenProp
         amount: numAmount,
         paymentMethod,
         description: description.trim() || undefined,
+        supplierId: linkedSupplier?.id,
+        supplierName: linkedSupplier?.name,
+        productId: linkedProduct?.id,
+        productName: linkedProduct?.name,
         createdAt: new Date().toISOString(),
       });
       setShowModal(false);
@@ -89,6 +109,9 @@ export default function ExpensesScreen({ navigation, route }: ExpensesScreenProp
       setAmount('');
       setPaymentMethod('cash');
       setDescription('');
+      setLinkedSupplier(null);
+      setLinkedProduct(null);
+      setProductSearch('');
       loadData();
     } catch (e) {
       Alert.alert('Error', 'Failed to add expense');
@@ -125,6 +148,12 @@ export default function ExpensesScreen({ navigation, route }: ExpensesScreenProp
                 <Text style={styles.expenseCategory}>{item.title}</Text>
                 <Text style={styles.expenseCategorySub}>{item.category} • {item.paymentMethod.toUpperCase()}</Text>
                 {item.description && <Text style={styles.expenseDesc} numberOfLines={1}>{item.description}</Text>}
+                {(item.supplierName || item.productName) && (
+                  <Text style={styles.expenseLink} numberOfLines={1}>
+                    {[item.supplierName && `Supplier: ${item.supplierName}`, item.productName && `Product: ${item.productName}`]
+                      .filter(Boolean).join(' • ')}
+                  </Text>
+                )}
                 <Text style={styles.expenseDate}>{new Date(item.createdAt).toLocaleDateString('en-IN')}</Text>
               </View>
               <Text style={styles.expenseAmount}>-₹{item.amount.toFixed(2)}</Text>
@@ -172,6 +201,59 @@ export default function ExpensesScreen({ navigation, route }: ExpensesScreenProp
 
             <Text style={styles.label}>Description</Text>
             <TextInput style={[styles.input, styles.textArea]} value={description} onChangeText={setDescription} multiline numberOfLines={2} placeholder="Optional notes" placeholderTextColor={COLORS.textTertiary} />
+
+            <Text style={styles.label}>Link to Supplier (optional)</Text>
+            <TouchableOpacity style={styles.input} onPress={() => setShowSupplierPicker(!showSupplierPicker)}>
+              <Text style={linkedSupplier ? styles.inputText : styles.inputPlaceholder}>
+                {linkedSupplier ? linkedSupplier.name : 'None — pay from cash/bank'}
+              </Text>
+            </TouchableOpacity>
+            {showSupplierPicker && (
+              <View style={styles.picker}>
+                <TouchableOpacity style={styles.pickerItem} onPress={() => { setLinkedSupplier(null); setShowSupplierPicker(false); }}>
+                  <Text style={styles.pickerItemText}>None</Text>
+                </TouchableOpacity>
+                {suppliers.map(s => (
+                  <TouchableOpacity key={s.id} style={styles.pickerItem} onPress={() => { setLinkedSupplier(s); setShowSupplierPicker(false); }}>
+                    <Text style={styles.pickerItemText}>{s.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+            {linkedSupplier && (
+              <Text style={styles.helperText}>
+                This amount will be added to {linkedSupplier.name}'s outstanding balance immediately.
+              </Text>
+            )}
+
+            <Text style={styles.label}>Link to Product (optional)</Text>
+            <TouchableOpacity style={styles.input} onPress={() => setShowProductPicker(!showProductPicker)}>
+              <Text style={linkedProduct ? styles.inputText : styles.inputPlaceholder}>
+                {linkedProduct ? linkedProduct.name : 'None'}
+              </Text>
+            </TouchableOpacity>
+            {showProductPicker && (
+              <View style={styles.picker}>
+                <TextInput
+                  style={styles.pickerSearch}
+                  value={productSearch}
+                  onChangeText={setProductSearch}
+                  placeholder="Search product"
+                  placeholderTextColor={COLORS.textTertiary}
+                />
+                <TouchableOpacity style={styles.pickerItem} onPress={() => { setLinkedProduct(null); setShowProductPicker(false); }}>
+                  <Text style={styles.pickerItemText}>None</Text>
+                </TouchableOpacity>
+                {products
+                  .filter(p => p.name.toLowerCase().includes(productSearch.trim().toLowerCase()))
+                  .slice(0, 20)
+                  .map(p => (
+                    <TouchableOpacity key={p.id} style={styles.pickerItem} onPress={() => { setLinkedProduct(p); setShowProductPicker(false); setProductSearch(''); }}>
+                      <Text style={styles.pickerItemText}>{p.name}</Text>
+                    </TouchableOpacity>
+                  ))}
+              </View>
+            )}
 
             <View style={styles.buttonRow}>
               <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowModal(false)}>
@@ -227,6 +309,12 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZE.sm,
     color: COLORS.textSecondary,
     marginTop: 2,
+  },
+  expenseLink: {
+    fontSize: FONT_SIZE.xs,
+    color: COLORS.primary,
+    marginTop: 2,
+    fontWeight: '600',
   },
   expenseDate: {
     fontSize: FONT_SIZE.xs,
@@ -305,6 +393,20 @@ const styles = StyleSheet.create({
   pickerItemText: {
     fontSize: FONT_SIZE.md,
     color: COLORS.textPrimary,
+  },
+  pickerSearch: {
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.lg,
+    fontSize: FONT_SIZE.md,
+    color: COLORS.textPrimary,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.divider,
+  },
+  helperText: {
+    fontSize: FONT_SIZE.xs,
+    color: COLORS.textTertiary,
+    marginTop: SPACING.xs,
+    fontStyle: 'italic',
   },
   methodRow: {
     flexDirection: 'row',
