@@ -1834,28 +1834,182 @@ export async function getSalesReport(
   start: string,
   end: string
 ): Promise<SalesReport> {
-  const sales =
-    await getSalesByDateRange(
-      businessId,
-      start,
-      end
-    );
+  const sales = await getSalesByDateRange(businessId, start, end);
+  const total = sales.reduce((x, s) => x + s.total, 0);
+  const items = await Promise.all(sales.map(x => getSaleItems(x.id)));
 
-  const total = sales.reduce(
-    (x, s) => x + s.total,
-    0
-  );
+  const byMethod = (method: Sale['paymentMethod']) =>
+    sales.filter(x => x.paymentMethod === method).reduce((x, s) => x + s.total, 0);
 
   return {
     totalSales: total,
     totalBills: sales.length,
-    totalItems: (
-      await Promise.all(
-        sales.map(x => getSaleItems(x.id))
-      )
-    ).reduce(
-      (sum, items) => sum + items.length,
-      0
-    ),
+    totalItems: items.reduce((sum, list_) => sum + list_.length, 0),
+    cashSales: byMethod('cash'),
+    upiSales: byMethod('upi'),
+    creditSales: byMethod('credit'),
+    cardSales: byMethod('card'),
+    averageBill: sales.length ? roundTo2(total / sales.length) : 0,
+    discountTotal: roundTo2(sales.reduce((x, s) => x + s.discount, 0)),
+    taxTotal: roundTo2(sales.reduce((x, s) => x + s.taxAmount, 0)),
+    period: `${start} - ${end}`
+  };
+}
+
+export async function getProductReport(
+  businessId: string,
+  limit = 50
+): Promise<ProductReport[]> {
+  const [products, sales] = await Promise.all([
+    stockProducts(businessId),
+    getSales(businessId, 10000)
+  ]);
+
+  const completedSales = sales.filter(x => x.status === 'completed');
+  const itemsBySale = await Promise.all(completedSales.map(x => getSaleItems(x.id)));
+
+  const stats = new Map<string, { totalSold: number; totalRevenue: number; totalProfit: number }>();
+
+  for (const items of itemsBySale) {
+    for (const item of items) {
+      const entry = stats.get(item.productId) || { totalSold: 0, totalRevenue: 0, totalProfit: 0 };
+      entry.totalSold += item.quantity;
+      entry.totalRevenue += item.total;
+      entry.totalProfit += item.price * item.quantity - item.discount - item.costPrice * item.quantity;
+      stats.set(item.productId, entry);
+    }
+  }
+
+  const sorted = [...stats.entries()].sort((a, b) => b[1].totalSold - a[1].totalSold);
+  const bestSellerIds = new Set(sorted.slice(0, 5).map(([id]) => id));
+
+  return products
+    .map(p => {
+      const entry = stats.get(p.id) || { totalSold: 0, totalRevenue: 0, totalProfit: 0 };
+      const status: ProductReport['status'] =
+        entry.totalSold > 0 && bestSellerIds.has(p.id) ? 'best_seller'
+        : entry.totalSold === 0 ? 'slow_moving'
+        : 'normal';
+
+      return {
+        productId: p.id,
+        productName: p.name,
+        totalSold: roundTo2(entry.totalSold),
+        totalRevenue: roundTo2(entry.totalRevenue),
+        totalProfit: roundTo2(entry.totalProfit),
+        currentStock: p.currentStock,
+        status
+      };
+    })
+    .sort((a, b) => b.totalRevenue - a.totalRevenue)
+    .slice(0, limit);
+}
+
+export async function getCustomerReport(businessId: string): Promise<CustomerReport[]> {
+  const [customers, sales, payments] = await Promise.all([
+    getCustomers(businessId),
+    getSales(businessId, 10000),
+    getPayments(businessId, 10000)
+  ]);
+
+  return customers
+    .map(c => {
+      const customerSales = sales.filter(s => s.customerId === c.id && s.status === 'completed');
+      const customerPayments = payments.filter(p => p.customerId === c.id);
+
+      const totalPurchases = customerSales.reduce((x, s) => x + s.total, 0);
+      const totalPaid =
+        customerSales.reduce((x, s) => x + s.paid, 0) +
+        customerPayments.reduce((x, p) => x + p.amount, 0);
+
+      return {
+        customerId: c.id,
+        customerName: c.name,
+        totalPurchases: roundTo2(totalPurchases),
+        totalPaid: roundTo2(totalPaid),
+        outstanding: roundTo2(Math.max(0, c.balance)),
+        purchaseCount: customerSales.length
+      };
+    })
+    .filter(c => c.purchaseCount > 0 || c.outstanding > 0);
+}
+
+export async function getExpenseReport(
+  businessId: string,
+  start: string,
+  end: string
+): Promise<ExpenseReport> {
+  const expenses = await getExpensesByDateRange(businessId, start, end);
+  const totalExpenses = expenses.reduce((x, e) => x + e.amount, 0);
+
+  const byCategory = new Map<string, number>();
+  for (const e of expenses) {
+    byCategory.set(e.category, (byCategory.get(e.category) || 0) + e.amount);
+  }
+
+  const categoryBreakdown = [...byCategory.entries()]
+    .map(([category, amount]) => ({
+      category,
+      amount: roundTo2(amount),
+      percentage: totalExpenses ? Math.round((amount / totalExpenses) * 100) : 0
+    }))
+    .sort((a, b) => b.amount - a.amount);
+
+  return {
+    totalExpenses: roundTo2(totalExpenses),
+    categoryBreakdown,
+    period: `${start} - ${end}`
+  };
+}
+
+export async function getBalanceSummary(businessId: string): Promise<{
+  cashInHand: number;
+  upiBalance: number;
+  bankBalance: number;
+  totalReceivables: number;
+  totalPayables: number;
+  totalStockValue: number;
+  netPosition: number;
+}> {
+  const [sales, purchases, payments, expenses, customers, suppliers, products] = await Promise.all([
+    getSales(businessId, 10000),
+    getPurchases(businessId, 10000),
+    getPayments(businessId, 10000),
+    getExpenses(businessId, 10000),
+    getCustomers(businessId),
+    getSuppliers(businessId),
+    stockProducts(businessId)
+  ]);
+
+  const completedSales = sales.filter(x => x.status === 'completed');
+  const completedPurchases = purchases.filter(x => x.status === 'completed');
+
+  const inflow = (method: string) =>
+    completedSales.filter(x => x.paymentMethod === method).reduce((x, s) => x + s.paid, 0) +
+    payments.filter(x => x.customerId && x.method === method).reduce((x, p) => x + p.amount, 0);
+
+  const outflow = (method: string) =>
+    completedPurchases.filter(x => x.paymentMethod === method).reduce((x, p) => x + p.paid, 0) +
+    payments.filter(x => x.supplierId && x.method === method).reduce((x, p) => x + p.amount, 0) +
+    expenses.filter(x => x.paymentMethod === method).reduce((x, e) => x + e.amount, 0);
+
+  const cashInHand = inflow('cash') - outflow('cash');
+  const upiBalance = inflow('upi') - outflow('upi');
+  const bankBalance = inflow('card') - outflow('card');
+
+  const totalReceivables = customers.reduce((x, c) => x + Math.max(0, c.balance), 0);
+  const totalPayables = suppliers.reduce((x, s) => x + Math.max(0, s.balance), 0);
+  const totalStockValue = products.reduce((x, p) => x + p.currentStock * p.purchasePrice, 0);
+
+  const netPosition = cashInHand + upiBalance + bankBalance + totalReceivables + totalStockValue - totalPayables;
+
+  return {
+    cashInHand: roundTo2(cashInHand),
+    upiBalance: roundTo2(upiBalance),
+    bankBalance: roundTo2(bankBalance),
+    totalReceivables: roundTo2(totalReceivables),
+    totalPayables: roundTo2(totalPayables),
+    totalStockValue: roundTo2(totalStockValue),
+    netPosition: roundTo2(netPosition)
   };
 }
