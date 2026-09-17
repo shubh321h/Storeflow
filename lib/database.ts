@@ -247,6 +247,10 @@ function mapExpense(r: Row): Expense {
     amount: n(r.amount),
     paymentMethod: r.payment_method,
     description: o(r.description),
+    supplierId: o(r.supplier_id),
+    supplierName: o(r.supplier_name),
+    productId: o(r.product_id),
+    productName: o(r.product_name),
     createdAt: s(r.created_at)
   };
 }
@@ -1413,6 +1417,14 @@ export async function getPaymentsForCustomer(
 export async function createExpense(
   v: Expense
 ): Promise<void> {
+  // A supplier-linked expense must go through the atomic RPC so the
+  // supplier balance/ledger update immediately in the same transaction.
+  if (v.supplierId) {
+    const { error } = await supabase.rpc('record_expense_atomic', { payload: v });
+    check(error);
+    return;
+  }
+
   const { error } = await supabase.from('expenses').insert({
     id: v.id,
     business_id: v.businessId,
@@ -1421,6 +1433,10 @@ export async function createExpense(
     amount: v.amount,
     payment_method: v.paymentMethod,
     description: v.description || null,
+    supplier_id: v.supplierId || null,
+    supplier_name: v.supplierName || null,
+    product_id: v.productId || null,
+    product_name: v.productName || null,
     created_at: v.createdAt
   });
 
