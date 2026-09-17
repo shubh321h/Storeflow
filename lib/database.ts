@@ -25,7 +25,7 @@ import {
   ExpenseReport
 } from './types';
 
-import { generateId, getStartOfDay, getEndOfDay, normalizeBarcode } from './utils';
+import { generateId, getStartOfDay, getEndOfDay, normalizeBarcode, roundTo2 } from './utils';
 import { supabase } from './supabase';
 
 type Row = Record<string, any>;
@@ -263,6 +263,7 @@ function mapItem(r: Row): SaleItem {
     taxRate: n(r.tax_rate),
     taxAmount: n(r.tax_amount),
     total: n(r.total)
+    costPrice: n(r.cost_price)
   };
 }
 
@@ -1665,76 +1666,39 @@ export async function getLastBackupRecord(
 export async function getDashboardStats(
   businessId: string
 ): Promise<DashboardStats> {
-  const [
-    sales,
-    purchases,
-    expenses,
-    customers,
-    products
-  ] = await Promise.all([
-    getSalesByDateRange(
-      businessId,
-      getStartOfDay(),
-      getEndOfDay()
-    ),
+  const [sales, purchases, expenses, customers, products] = await Promise.all([
+    getSalesByDateRange(businessId, getStartOfDay(), getEndOfDay()),
     getPurchases(businessId, 10000),
-    getExpensesByDateRange(
-      businessId,
-      getStartOfDay(),
-      getEndOfDay()
-    ),
+    getExpensesByDateRange(businessId, getStartOfDay(), getEndOfDay()),
     getCustomers(businessId),
     stockProducts(businessId)
   ]);
 
-  const expenseTotal = expenses.reduce(
-    (x, e) => x + e.amount,
+  const expenseTotal = expenses.reduce((x, e) => x + e.amount, 0);
+  const todayPurchases = purchases.filter(
+    x => x.createdAt >= getStartOfDay() && x.createdAt <= getEndOfDay()
+  );
+
+  // Pull today's sale items so we can compute real profit, not a placeholder.
+  const todaySaleItems = (await Promise.all(sales.map(x => getSaleItems(x.id)))).flat();
+  const estimatedProfit = todaySaleItems.reduce(
+    (x, item) => x + (item.price * item.quantity - item.discount - item.costPrice * item.quantity),
     0
   );
 
-  const todayPurchases = purchases.filter(
-    x =>
-      x.createdAt >= getStartOfDay() &&
-      x.createdAt <= getEndOfDay()
-  );
-
   return {
-    todaySales: sales.reduce(
-      (x, s) => x + s.total,
-      0
-    ),
+    todaySales: sales.reduce((x, s) => x + s.total, 0),
     todayBills: sales.length,
     todayExpenses: expenseTotal,
     todayCash:
-      sales
-        .filter(
-          x =>
-            x.paymentMethod === 'cash' ||
-            x.paymentMethod === 'mixed'
-        )
-        .reduce((x, s) => x + s.paid, 0) -
-      expenseTotal,
-    totalReceivables: sales.reduce(
-      (x, s) => x + s.due,
-      0
-    ),
-    lowStockCount: products.filter(
-      x =>
-        x.currentStock > 0 &&
-        x.currentStock <= x.minStockLevel
-    ).length,
-    outOfStockCount: products.filter(
-      x => x.currentStock <= 0
-    ).length,
-    currentBalance: customers.reduce(
-      (x, c) => x + c.balance,
-      0
-    ),
-    todayPurchases: todayPurchases.reduce(
-      (x, p) => x + p.total,
-      0
-    ),
-    estimatedProfit: 0
+      sales.filter(x => x.paymentMethod === 'cash' || x.paymentMethod === 'mixed')
+        .reduce((x, s) => x + s.paid, 0) - expenseTotal,
+    totalReceivables: sales.reduce((x, s) => x + s.due, 0),
+    lowStockCount: products.filter(x => x.currentStock > 0 && x.currentStock <= x.minStockLevel).length,
+    outOfStockCount: products.filter(x => x.currentStock <= 0).length,
+    currentBalance: customers.reduce((x, c) => x + c.balance, 0),
+    todayPurchases: todayPurchases.reduce((x, p) => x + p.total, 0),
+    estimatedProfit: roundTo2(estimatedProfit)
   };
 }
 
