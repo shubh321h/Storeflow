@@ -149,6 +149,7 @@ export interface SaleItem {
   taxRate: number;
   taxAmount: number;
   total: number;
+  costPrice: number;
 }
 
 export interface Purchase {
