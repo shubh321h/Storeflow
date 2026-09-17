@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View, Text, FlatList, StyleSheet, TouchableOpacity, Modal, TextInput, ScrollView,
   KeyboardAvoidingView, Platform, Alert, ActivityIndicator, Dimensions,
@@ -40,7 +40,7 @@ export default function BillingScreen({ navigation, route }: BillingScreenProps)
   const [customerSearch, setCustomerSearch] = useState('');
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-  const [preLoadedCustomer, setPreLoadedCustomer] = useState(false);
+  const preLoadedCustomerRef = useRef(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'upi' | 'credit' | 'card'>('cash');
   const [paidAmount, setPaidAmount] = useState('');
@@ -59,7 +59,9 @@ export default function BillingScreen({ navigation, route }: BillingScreenProps)
   const taxableAmount = subtotal - discountAmount;
   const taxAmount = 0;
   const total = Math.max(0, taxableAmount + taxAmount);
-  const paid = parseFloat(paidAmount) || total;
+  const paid = paymentMethod === 'credit'
+    ? (parseFloat(paidAmount) || 0)
+    : (parseFloat(paidAmount) || total);
   const due = Math.max(0, total - paid);
 
   useFocusEffect(
@@ -68,16 +70,23 @@ export default function BillingScreen({ navigation, route }: BillingScreenProps)
         addToCart(route.params.scannedProduct);
         navigation.setParams({ scannedProduct: undefined });
       }
-      if (route.params?.customerId && !preLoadedCustomer) {
+      if (route.params?.customerId && !preLoadedCustomerRef.current) {
+        preLoadedCustomerRef.current = true;
+        const customerId = route.params.customerId;
         const loadCustomer = async () => {
           const { getCustomerById } = await import('../lib/database');
-          const customer = await getCustomerById(route.params.customerId);
-          if (customer) { setSelectedCustomer(customer); setPreLoadedCustomer(true); }
+          const customer = await getCustomerById(customerId);
+          if (customer) { setSelectedCustomer(customer); }
         };
         loadCustomer();
+        // Consume the param immediately so re-focusing this screen (e.g.
+        // returning from the barcode scanner) can never re-trigger this
+        // and silently overwrite a customer the user has since changed.
+        navigation.setParams({ customerId: undefined });
       }
     }, [route.params])
   );
+  
 
   function addToCart(product: Product) {
     if (product.currentStock <= 0) {
