@@ -205,6 +205,10 @@ export interface Expense {
   amount: number;
   paymentMethod: 'cash' | 'upi' | 'card';
   description?: string;
+  supplierId?: string;
+  supplierName?: string;
+  productId?: string;
+  productName?: string;
   createdAt: string;
 }
 
