@@ -104,7 +104,7 @@ export default function BillingScreen({ navigation, route }: BillingScreenProps)
         total: product.sellingPrice,
       }]);
     }
-    setShowSearch(false);
+    
   }
 
   function updateCartItemQuantity(productId: string, quantity: number) {
@@ -490,12 +490,24 @@ export default function BillingScreen({ navigation, route }: BillingScreenProps)
             <Ionicons name="scan-outline" size={20} color={COLORS.primary} />
             <Text style={styles.scanBtnText}>Scan Barcode</Text>
           </TouchableOpacity>
-          <FlatList
+                    <FlatList
             data={searchResults}
             keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <ProductCard product={item} onPress={() => addToCart(item)} />
-            )}
+            renderItem={({ item }) => {
+              const inCart = cart.find(c => c.product.id === item.id);
+              return (
+                <View>
+                  <ProductCard product={item} onPress={() => addToCart(item)} />
+                  {inCart && (
+                    <View style={styles.inCartBadge}>
+                      <Text style={styles.inCartBadgeText}>
+                        In cart: {inCart.quantity} {item.productType === 'loose' ? item.unit : ''}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              );
+            }}
             contentContainerStyle={styles.listContent}
             ListEmptyComponent={
               searchQuery.length > 0 ? (
@@ -505,6 +517,17 @@ export default function BillingScreen({ navigation, route }: BillingScreenProps)
               ) : null
             }
           />
+          {/* Keep adding products; only leave this screen when the user is
+              actually ready to checkout, instead of being bounced to the
+              cart after every single item. */}
+          {cart.length > 0 && (
+            <TouchableOpacity style={styles.viewCartBar} onPress={() => setShowSearch(false)}>
+              <Text style={styles.viewCartBarText}>
+                {cart.length} item{cart.length > 1 ? 's' : ''} · {formatCurrency(cart.reduce((s, c) => s + c.total, 0), business?.currency)}
+              </Text>
+              <Text style={styles.viewCartBarAction}>View Cart →</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </Modal>
 
@@ -1076,5 +1099,38 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
     backgroundColor: COLORS.surface,
+  },
+    viewCartBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: COLORS.primary,
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.lg,
+  },
+  viewCartBarText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: FONT_SIZE.md,
+  },
+  viewCartBarAction: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: FONT_SIZE.md,
+  },
+  inCartBadge: {
+    marginTop: -SPACING.sm,
+    marginBottom: SPACING.sm,
+    marginHorizontal: SPACING.lg,
+    alignSelf: 'flex-start',
+    backgroundColor: COLORS.primaryLight,
+    borderRadius: BORDER_RADIUS.sm,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 2,
+  },
+  inCartBadgeText: {
+    color: COLORS.primary,
+    fontSize: FONT_SIZE.xs,
+    fontWeight: '700',
   },
 });
