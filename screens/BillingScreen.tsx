@@ -288,6 +288,7 @@ export default function BillingScreen({ navigation, route }: BillingScreenProps)
           taxRate: item.product.taxRate,
           taxAmount: itemTax,
           total: item.price * item.quantity - item.discount + itemTax,
+          costPrice: item.product.purchasePrice,
         };
       });
 
