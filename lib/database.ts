@@ -1682,6 +1682,131 @@ export async function getLastBackupRecord(
       }
     : null;
 }
+async function upsertRows(
+  table: string,
+  rows: any[] | undefined,
+  conflictColumn = 'id'
+): Promise<void> {
+  if (!rows || rows.length === 0) return;
+  const { error } = await supabase
+    .from(table)
+    .upsert(rows, { onConflict: conflictColumn });
+  check(error);
+}
+
+export async function exportAllData(
+  businessId: string
+): Promise<Record<string, any>> {
+  const [
+    businessRes, settingsRes, categoriesRes, suppliersRes, customersRes,
+    productsRes, inventoryRes, stockMovementsRes, salesRes, purchasesRes,
+    paymentsRes, expensesRes, invoicesRes, customerLedgerRes, supplierLedgerRes
+  ] = await Promise.all([
+    supabase.from('businesses').select('*').eq('id', businessId).maybeSingle(),
+    supabase.from('business_settings').select('*').eq('business_id', businessId).maybeSingle(),
+    supabase.from('categories').select('*').eq('business_id', businessId),
+    supabase.from('suppliers').select('*').eq('business_id', businessId),
+    supabase.from('customers').select('*').eq('business_id', businessId),
+    supabase.from('products').select('*').eq('business_id', businessId),
+    supabase.from('inventory').select('*').eq('business_id', businessId),
+    supabase.from('stock_movements').select('*').eq('business_id', businessId),
+    supabase.from('sales').select('*').eq('business_id', businessId),
+    supabase.from('purchases').select('*').eq('business_id', businessId),
+    supabase.from('payments').select('*').eq('business_id', businessId),
+    supabase.from('expenses').select('*').eq('business_id', businessId),
+    supabase.from('invoices').select('*').eq('business_id', businessId),
+    supabase.from('customer_ledger').select('*').eq('business_id', businessId),
+    supabase.from('supplier_ledger').select('*').eq('business_id', businessId),
+  ]);
+
+  for (const r of [
+    businessRes, settingsRes, categoriesRes, suppliersRes, customersRes,
+    productsRes, inventoryRes, stockMovementsRes, salesRes, purchasesRes,
+    paymentsRes, expensesRes, invoicesRes, customerLedgerRes, supplierLedgerRes
+  ]) {
+    check(r.error);
+  }
+
+  const saleIds = (salesRes.data || []).map((s: any) => s.id);
+  const purchaseIds = (purchasesRes.data || []).map((p: any) => p.id);
+
+  const [saleItemsRes, purchaseItemsRes] = await Promise.all([
+    saleIds.length
+      ? supabase.from('sale_items').select('*').in('sale_id', saleIds)
+      : Promise.resolve({ data: [], error: null }),
+    purchaseIds.length
+      ? supabase.from('purchase_items').select('*').in('purchase_id', purchaseIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+
+  check(saleItemsRes.error);
+  check(purchaseItemsRes.error);
+
+  return {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    businessId,
+    business: businessRes.data,
+    businessSettings: settingsRes.data,
+    categories: categoriesRes.data || [],
+    suppliers: suppliersRes.data || [],
+    customers: customersRes.data || [],
+    products: productsRes.data || [],
+    inventory: inventoryRes.data || [],
+    stockMovements: stockMovementsRes.data || [],
+    sales: salesRes.data || [],
+    saleItems: saleItemsRes.data || [],
+    purchases: purchasesRes.data || [],
+    purchaseItems: purchaseItemsRes.data || [],
+    payments: paymentsRes.data || [],
+    expenses: expensesRes.data || [],
+    invoices: invoicesRes.data || [],
+    customerLedger: customerLedgerRes.data || [],
+    supplierLedger: supplierLedgerRes.data || [],
+  };
+}
+
+export async function importData(
+  data: Record<string, any>,
+  targetBusinessId: string
+): Promise<void> {
+  if (!data || typeof data !== 'object') {
+    throw new Error('Invalid backup data');
+  }
+  if (!targetBusinessId) {
+    throw new Error('No business selected to restore into');
+  }
+
+  // Restore into the CURRENTLY selected business only — never trust a
+  // business_id embedded in a pasted backup file, so a backup can't
+  // accidentally (or maliciously) overwrite a different business.
+  const stamp = (rows: any[] | undefined) =>
+    (rows || []).map((r) => ({ ...r, business_id: targetBusinessId }));
+
+  if (data.businessSettings) {
+    const { id, business_id, ...rest } = data.businessSettings;
+    const { error } = await supabase
+      .from('business_settings')
+      .upsert({ ...rest, business_id: targetBusinessId }, { onConflict: 'business_id' });
+    check(error);
+  }
+
+  await upsertRows('categories', stamp(data.categories));
+  await upsertRows('suppliers', stamp(data.suppliers));
+  await upsertRows('customers', stamp(data.customers));
+  await upsertRows('products', stamp(data.products));
+  await upsertRows('inventory', stamp(data.inventory), 'product_id');
+  await upsertRows('sales', stamp(data.sales));
+  await upsertRows('sale_items', data.saleItems);
+  await upsertRows('purchases', stamp(data.purchases));
+  await upsertRows('purchase_items', data.purchaseItems);
+  await upsertRows('payments', stamp(data.payments));
+  await upsertRows('expenses', stamp(data.expenses));
+  await upsertRows('invoices', stamp(data.invoices));
+  await upsertRows('customer_ledger', stamp(data.customerLedger));
+  await upsertRows('supplier_ledger', stamp(data.supplierLedger));
+  await upsertRows('stock_movements', stamp(data.stockMovements));
+}
 
 export async function getDashboardStats(
   businessId: string
