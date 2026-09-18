@@ -68,6 +68,7 @@ export interface Product {
   mrp?: number;
   taxRate: number;
   unit: string;
+  productType: 'packed' | 'loose';
   currentStock: number;
   minStockLevel: number;
   supplierId?: string;
