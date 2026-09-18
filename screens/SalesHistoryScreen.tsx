@@ -90,7 +90,7 @@ export default function SalesHistoryScreen({ navigation, route }: SalesHistorySc
       setReturnReason('');
       loadData();
       Alert.alert('Success', 'Sales return recorded successfully');
-    }     } catch (e: any) {
+      } catch (e: any) {
       console.error('Return error:', e);
       Alert.alert('Error', e.message || 'Failed to process return');
   }
