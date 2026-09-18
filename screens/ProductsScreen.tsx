@@ -10,7 +10,7 @@ import {
   getProducts, searchProducts, createProduct, updateProduct, getCategories, getSuppliers, createCategory, createStockMovement, updateProductStock, getStockMovements,
 } from '../lib/database';
 import { Product, Category, Supplier, StockMovement } from '../lib/types';
-import { generateId, debounce, roundTo2 } from '../lib/utils';
+import { generateId, debounce, roundTo2, LOOSE_UNITS } from '../lib/utils';
 import { FoodProductMetadata } from '../lib/openFoodFacts';
 import { BarcodeMetadata } from '../lib/barcodeMetadata';
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOW, COMMON_STYLES } from '../lib/theme';
@@ -55,6 +55,7 @@ const barcodeHandledRef = useRef<string | null>(null);
   const [formMrp, setFormMrp] = useState('');
   const [formTaxRate, setFormTaxRate] = useState('');
   const [formUnit, setFormUnit] = useState('Piece');
+  const [formProductType, setFormProductType] = useState<'packed' | 'loose'>('packed');
   const [formStock, setFormStock] = useState('');
   const [formMinStock, setFormMinStock] = useState('');
   const [formSupplier, setFormSupplier] = useState('');
@@ -109,6 +110,7 @@ const handleBarcodeScanned = useCallback(
       );
       setFormTaxRate(String(scannedProduct.taxRate ?? 0));
       setFormUnit(scannedProduct.unit || 'Piece');
+      setFormProductType(scannedProduct.productType || 'packed');
       setFormStock(String(scannedProduct.currentStock ?? 0));
       setFormMinStock(String(scannedProduct.minStockLevel ?? 0));
       setFormSupplier(scannedProduct.supplierName || '');
@@ -288,6 +290,7 @@ const debouncedSearch = useCallback(
       setFormMrp(product.mrp ? String(product.mrp) : '');
       setFormTaxRate(String(product.taxRate));
       setFormUnit(product.unit);
+      setFormProductType(product.productType || 'packed');
       setFormStock(String(product.currentStock));
       setFormMinStock(String(product.minStockLevel));
       setFormSupplier(product.supplierName || '');
@@ -310,6 +313,7 @@ const debouncedSearch = useCallback(
     setFormMrp('');
     setFormTaxRate(String(business?.defaultTaxRate || 0));
     setFormUnit('Piece');
+    setFormProductType('packed');
     setFormStock('0');
     setFormMinStock('5');
     setFormSupplier('');
@@ -348,6 +352,7 @@ const debouncedSearch = useCallback(
           mrp: mrp,
           taxRate: taxRate,
           unit: formUnit,
+          productType: formProductType,
           currentStock: stock,
           minStockLevel: minStock,
           supplierId: supplierObj?.id,
@@ -371,6 +376,7 @@ const debouncedSearch = useCallback(
           mrp: mrp,
           taxRate: taxRate,
           unit: formUnit,
+          productType: formProductType,
           currentStock: stock,
           minStockLevel: minStock,
           supplierId: supplierObj?.id,
@@ -636,13 +642,37 @@ if (error) {
               <Text style={styles.formLabel}>Brand</Text>
               <TextInput style={styles.formInput} value={formBrand} onChangeText={setFormBrand} placeholder="Brand name" placeholderTextColor={COLORS.textTertiary} />
 
+                            <Text style={styles.formLabel}>Product Type</Text>
+              <View style={styles.methodRow}>
+                <TouchableOpacity
+                  style={[styles.methodBtn, formProductType === 'packed' && styles.methodBtnActive]}
+                  onPress={() => setFormProductType('packed')}
+                >
+                  <Text style={[styles.methodBtnText, formProductType === 'packed' && styles.methodBtnTextActive]}>Packed</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.methodBtn, formProductType === 'loose' && styles.methodBtnActive]}
+                  onPress={() => {
+                    setFormProductType('loose');
+                    if (!LOOSE_UNITS.includes(formUnit)) setFormUnit('Kg');
+                  }}
+                >
+                  <Text style={[styles.methodBtnText, formProductType === 'loose' && styles.methodBtnTextActive]}>Loose (by weight/volume)</Text>
+                </TouchableOpacity>
+              </View>
+              {formProductType === 'loose' && (
+                <Text style={styles.helperText}>
+                  Sold in smaller amounts at billing time, e.g. price ₹120/Kg → 170 g automatically calculates to ₹20.40.
+                </Text>
+              )}
+
               <View style={styles.rowInputs}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.formLabel}>Purchase Price</Text>
+                  <Text style={styles.formLabel}>Purchase Price {formProductType === 'loose' ? `(per ${formUnit})` : ''}</Text>
                   <TextInput style={styles.formInput} value={formPurchasePrice} onChangeText={setFormPurchasePrice} keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor={COLORS.textTertiary} />
                 </View>
                 <View style={{ flex: 1, marginLeft: SPACING.md }}>
-                  <Text style={styles.formLabel}>Selling Price *</Text>
+                  <Text style={styles.formLabel}>Selling Price {formProductType === 'loose' ? `(per ${formUnit}) *` : '*'}</Text>
                   <TextInput style={styles.formInput} value={formSellingPrice} onChangeText={setFormSellingPrice} keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor={COLORS.textTertiary} />
                 </View>
               </View>
@@ -666,7 +696,7 @@ if (error) {
                   </TouchableOpacity>
                   {showUnitPicker && (
                     <View style={styles.pickerDropdown}>
-                      {units.map(u => (
+                      {(formProductType === 'loose' ? LOOSE_UNITS : units).map(u => (
                         <TouchableOpacity key={u} style={styles.pickerItem} onPress={() => { setFormUnit(u); setShowUnitPicker(false); }}>
                           <Text style={styles.pickerItemText}>{u}</Text>
                         </TouchableOpacity>
@@ -817,6 +847,38 @@ if (error) {
 }
 
 const styles = StyleSheet.create({
+    methodRow: {
+    flexDirection: 'row',
+    gap: SPACING.md,
+  },
+  methodBtn: {
+    flex: 1,
+    alignItems: 'center',
+    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surface,
+  },
+  methodBtnActive: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primaryLight,
+  },
+  methodBtnText: {
+    fontSize: FONT_SIZE.sm,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+  },
+  methodBtnTextActive: {
+    color: COLORS.primary,
+  },
+  helperText: {
+    fontSize: FONT_SIZE.xs,
+    color: COLORS.textTertiary,
+    marginTop: SPACING.xs,
+    fontStyle: 'italic',
+  },
   searchContainer: {
     paddingHorizontal: SPACING.lg,
     paddingTop: SPACING.md,
