@@ -75,20 +75,20 @@ export default function SettingsScreen({ navigation }: { navigation: any }) {
       });
     } finally { setBackupLoading(false); }
   }
-
   async function handleRestore() {
+    if (!business) return;
     if (!restoreData.trim()) { Alert.alert('Error', 'Paste backup data first'); return; }
     try {
       const data = JSON.parse(restoreData.trim());
-      await importData(data);
+      await importData(data, business.id);
       Alert.alert('Success', 'Data restored successfully. Please restart the app.');
       setShowRestoreModal(false);
       setRestoreData('');
-    } catch (e) {
-      Alert.alert('Error', 'Invalid backup data. Please check and try again.');
+    } catch (e: any) {
+      console.error('Restore error:', e);
+      Alert.alert('Error', e.message || 'Invalid backup data. Please check and try again.');
     }
   }
-
   async function updateSetting(key: keyof BusinessSettings, value: any) {
     if (!settings || !business) return;
     const updated = { ...settings, [key]: value, updatedAt: new Date().toISOString() };
