@@ -128,6 +128,7 @@ function mapProduct(r: Row): Product {
     barcode: o(r.barcode),
     sku: o(r.sku),
     categoryId: o(r.category_id),
+    categoryName: o(r.categories?.name),
     brand: o(r.brand),
     purchasePrice: n(r.purchase_price),
     sellingPrice: n(r.selling_price),
@@ -285,7 +286,7 @@ async function stockProducts(
 ): Promise<Product[]> {
   let q = supabase
     .from('products')
-    .select('*, inventory(current_stock)')
+    .select('*, inventory(current_stock), categories(name)')
     .eq('business_id', businessId)
     .order('name');
 
@@ -811,7 +812,7 @@ export async function getProductById(
 ): Promise<Product | null> {
   const { data, error } = await supabase
     .from('products')
-    .select('*, inventory(current_stock)')
+        .select('*, inventory(current_stock), categories(name)')
     .eq('id', id)
     .maybeSingle();
 
