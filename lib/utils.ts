@@ -154,6 +154,52 @@ export const UNITS = [
   'Piece', 'Kg', 'Gram', 'Litre', 'Ml', 'Dozen', 'Box', 'Pack', 'Bundle', 'Meter', 'Pair',
 ];
 
+// Units that make sense for a "Loose" product (sold by weight/volume, not by count).
+export const LOOSE_UNITS = ['Kg', 'Gram', 'Litre', 'Ml'];
+
+/**
+ * For a loose product, the shopkeeper enters quantity in the smaller,
+ * everyday unit (grams for a Kg-priced product, ml for a Litre-priced
+ * product) and we convert it into the product's base unit for pricing
+ * and stock, e.g. groundnut at ₹120/kg, enter 170 g -> 0.17 kg -> ₹20.40.
+ */
+export interface LooseEntryConfig {
+  /** The unit the user types the quantity in, e.g. "g" or "ml". */
+  entryUnit: string;
+  /** Multiply the entered value by this to get the product's base unit quantity. */
+  factor: number;
+}
+
+export function getLooseEntryConfig(unit: string): LooseEntryConfig {
+  switch (unit) {
+    case 'Kg':
+      return { entryUnit: 'g', factor: 0.001 };
+    case 'Litre':
+      return { entryUnit: 'ml', factor: 0.001 };
+    case 'Gram':
+      return { entryUnit: 'g', factor: 1 };
+    case 'Ml':
+      return { entryUnit: 'ml', factor: 1 };
+    default:
+      return { entryUnit: unit, factor: 1 };
+  }
+}
+
+/**
+ * Computes the base-unit quantity and price for a loose product given
+ * what the shopkeeper typed in the smaller entry unit.
+ * e.g. calculateLooseSale(120, 170, {entryUnit:'g', factor:0.001}) -> { quantity: 0.17, amount: 20.4 }
+ */
+export function calculateLooseSale(
+  pricePerBaseUnit: number,
+  enteredValue: number,
+  config: LooseEntryConfig
+): { quantity: number; amount: number } {
+  const quantity = Math.round(enteredValue * config.factor * 1000) / 1000;
+  const amount = roundTo2(pricePerBaseUnit * quantity);
+  return { quantity, amount };
+}
+
 export const BUSINESS_TYPES = [
   'General Store', 'Kirana Store', 'Grocery Store', 'Medical Store', 'Mobile Shop',
   'Electronics', 'Clothing', 'Hardware', 'Stationery', 'Other',
