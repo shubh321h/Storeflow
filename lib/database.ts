@@ -266,7 +266,7 @@ function mapItem(r: Row): SaleItem {
     discount: n(r.discount),
     taxRate: n(r.tax_rate),
     taxAmount: n(r.tax_amount),
-    total: n(r.total)
+    total: n(r.total),
     costPrice: n(r.cost_price)
   };
 }
