@@ -13,7 +13,7 @@ import {
 import { Product, Customer, CartItem, Sale, SaleItem, Business, StockMovement } from '../lib/types';
 import {
   generateId, formatCurrency, generateInvoiceNumber, roundTo2, calculateTax, getStartOfDay, getEndOfDay,
-} from '../lib/utils';
+getLooseEntryConfig, calculateLooseSale,} from '../lib/utils';
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOW, COMMON_STYLES } from '../lib/theme';
 import AppHeader from '../components/AppHeader';
 import SearchBar from '../components/SearchBar';
@@ -53,6 +53,9 @@ export default function BillingScreen({ navigation, route }: BillingScreenProps)
   const [showEditCartItem, setShowEditCartItem] = useState(false);
   const [billDiscount, setBillDiscount] = useState('');
   const [showBillDiscount, setShowBillDiscount] = useState(false);
+    const [looseProduct, setLooseProduct] = useState<Product | null>(null);
+  const [looseEntryValue, setLooseEntryValue] = useState('');
+  const [looseEditMode, setLooseEditMode] = useState(false);
 
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const discountAmount = parseFloat(billDiscount) || 0;
@@ -86,13 +89,19 @@ export default function BillingScreen({ navigation, route }: BillingScreenProps)
       }
     }, [route.params])
   );
-  
-
-  function addToCart(product: Product) {
+    function addToCart(product: Product) {
     if (product.currentStock <= 0) {
       Alert.alert('Out of Stock', `${product.name} is currently out of stock.`);
       return;
     }
+
+    if (product.productType === 'loose') {
+      setLooseProduct(product);
+      setLooseEntryValue('');
+      setLooseEditMode(false);
+      return;
+    }
+
     const existing = cart.find(item => item.product.id === product.id);
     if (existing) {
       if (existing.quantity + 1 > product.currentStock) {
@@ -113,8 +122,54 @@ export default function BillingScreen({ navigation, route }: BillingScreenProps)
         total: product.sellingPrice,
       }]);
     }
-    
   }
+
+  function confirmLooseEntry() {
+    if (!looseProduct) return;
+    const config = getLooseEntryConfig(looseProduct.unit);
+    const entered = parseFloat(looseEntryValue);
+    if (!entered || entered <= 0) {
+      Alert.alert('Invalid', `Enter a valid ${config.entryUnit} amount`);
+      return;
+    }
+    const { quantity, amount } = calculateLooseSale(looseProduct.sellingPrice, entered, config);
+    if (quantity > looseProduct.currentStock) {
+      Alert.alert('Stock Limit', `Only ${looseProduct.currentStock} ${looseProduct.unit} available.`);
+      return;
+    }
+    const existing = cart.find(item => item.product.id === looseProduct.id);
+    if (existing) {
+      const newQuantity = roundTo2(looseEditMode ? quantity : existing.quantity + quantity);
+      if (newQuantity <= 0) {
+        setCart(cart.filter(item => item.product.id !== looseProduct.id));
+        setLooseProduct(null);
+        setLooseEntryValue('');
+        return;
+      }
+      if (newQuantity > looseProduct.currentStock) {
+        Alert.alert('Stock Limit', `Only ${looseProduct.currentStock} ${looseProduct.unit} available.`);
+        return;
+      }
+      setCart(cart.map(item =>
+        item.product.id === looseProduct.id
+          ? { ...item, quantity: newQuantity, total: roundTo2(newQuantity * item.price) }
+          : item
+      ));
+    } else {
+      setCart([...cart, {
+        product: looseProduct,
+        quantity,
+        price: looseProduct.sellingPrice,
+        discount: 0,
+        total: amount,
+      }]);
+    }
+    setLooseProduct(null);
+    setLooseEntryValue('');
+    setLooseEditMode(false);
+  }
+
+  
 
   function updateCartItemQuantity(productId: string, quantity: number) {
     const item = cart.find(c => c.product.id === productId);
@@ -134,12 +189,19 @@ export default function BillingScreen({ navigation, route }: BillingScreenProps)
     ));
   }
 
-  function openEditCartItem(item: CartItem) {
+    function openEditCartItem(item: CartItem) {
+    if (item.product.productType === 'loose') {
+      const config = getLooseEntryConfig(item.product.unit);
+      setLooseProduct(item.product);
+      setLooseEntryValue(String(roundTo2(item.quantity / config.factor)));
+      setLooseEditMode(true);
+      return;
+    }
     setCartItemEdit(item);
     setEditPrice(String(item.price));
     setEditDiscount(String(item.discount));
     setShowEditCartItem(true);
-  }
+    }
 
   function saveCartItemEdit() {
     if (!cartItemEdit) return;
@@ -393,19 +455,26 @@ export default function BillingScreen({ navigation, route }: BillingScreenProps)
     navigation.navigate('InvoiceShare', { sale: saleData.sale, items: saleData.items });
   }
 
-  const renderCartItem = ({ item }: { item: CartItem }) => (
+    const renderCartItem = ({ item }: { item: CartItem }) => (
     <TouchableOpacity style={styles.cartItem} onPress={() => openEditCartItem(item)}>
       <View style={styles.cartItemInfo}>
         <Text style={styles.cartItemName} numberOfLines={1}>{item.product.name}</Text>
-        <Text style={styles.cartItemPrice}>{formatCurrency(item.price)} each</Text>
+        <Text style={styles.cartItemPrice}>{formatCurrency(item.price)} / {item.product.unit}</Text>
       </View>
-      <QuantitySelector
-        quantity={item.quantity}
-        onIncrement={() => updateCartItemQuantity(item.product.id, item.quantity + 1)}
-        onDecrement={() => updateCartItemQuantity(item.product.id, item.quantity - 1)}
-        unit={item.product.unit}
-        size="sm"
-      />
+      {item.product.productType === 'loose' ? (
+        <View style={styles.looseQtyDisplay}>
+          <Text style={styles.looseQtyText}>{item.quantity} {item.product.unit}</Text>
+          <Text style={styles.looseQtyEditHint}>Tap to edit</Text>
+        </View>
+      ) : (
+        <QuantitySelector
+          quantity={item.quantity}
+          onIncrement={() => updateCartItemQuantity(item.product.id, item.quantity + 1)}
+          onDecrement={() => updateCartItemQuantity(item.product.id, item.quantity - 1)}
+          unit={item.product.unit}
+          size="sm"
+        />
+      )}
       <Text style={styles.cartItemTotal}>{formatCurrency(item.total)}</Text>
     </TouchableOpacity>
   );
@@ -593,6 +662,52 @@ export default function BillingScreen({ navigation, route }: BillingScreenProps)
           </View>
         </View>
       </Modal>
+            {/* Loose Product Quantity Modal — e.g. groundnut ₹120/kg, enter 170 g -> ₹20.40 */}
+      <Modal visible={!!looseProduct} transparent animationType="fade" onRequestClose={() => setLooseProduct(null)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.editModal}>
+            <Text style={styles.editModalTitle}>{looseProduct?.name}</Text>
+            {looseProduct && (
+              <>
+                <Text style={styles.formLabel}>
+                  Price: {formatCurrency(looseProduct.sellingPrice, business?.currency)} / {looseProduct.unit}
+                </Text>
+                <Text style={styles.formLabel}>
+                  Enter quantity in {getLooseEntryConfig(looseProduct.unit).entryUnit}
+                </Text>
+                <TextInput
+                  style={styles.formInput}
+                  value={looseEntryValue}
+                  onChangeText={setLooseEntryValue}
+                  keyboardType="decimal-pad"
+                  placeholder={`e.g. 170`}
+                  placeholderTextColor={COLORS.textTertiary}
+                  autoFocus
+                />
+                {(() => {
+                  const config = getLooseEntryConfig(looseProduct.unit);
+                  const entered = parseFloat(looseEntryValue);
+                  if (!entered || entered <= 0) return null;
+                  const { quantity, amount } = calculateLooseSale(looseProduct.sellingPrice, entered, config);
+                  return (
+                    <Text style={styles.editTotal}>
+                      {quantity} {looseProduct.unit} → {formatCurrency(amount, business?.currency)}
+                    </Text>
+                  );
+                })()}
+              </>
+            )}
+            <View style={styles.editModalButtons}>
+              <TouchableOpacity style={styles.editCancelBtn} onPress={() => { setLooseProduct(null); setLooseEntryValue(''); setLooseEditMode(false); }}>
+                <Text style={styles.editCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.editSaveBtn} onPress={confirmLooseEntry}>
+                <Text style={styles.editSaveText}>{looseEditMode ? 'Update' : 'Add to Cart'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Payment Modal */}
       <Modal visible={showPaymentModal} transparent animationType="slide" onRequestClose={() => setShowPaymentModal(false)}>
@@ -692,6 +807,19 @@ export default function BillingScreen({ navigation, route }: BillingScreenProps)
 }
 
 const styles = StyleSheet.create({
+    looseQtyDisplay: {
+    alignItems: 'center',
+    marginHorizontal: SPACING.sm,
+  },
+  looseQtyText: {
+    fontSize: FONT_SIZE.md,
+    fontWeight: '700',
+    color: COLORS.textPrimary,
+  },
+  looseQtyEditHint: {
+    fontSize: FONT_SIZE.xs,
+    color: COLORS.textTertiary,
+  },
   emptyCart: {
     flex: 1,
     justifyContent: 'center',
