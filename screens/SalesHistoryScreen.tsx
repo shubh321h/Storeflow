@@ -30,7 +30,7 @@ export default function SalesHistoryScreen({ navigation, route }: SalesHistorySc
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [saleItems, setSaleItems] = useState<SaleItem[]>([]);
   const [showReturnModal, setShowReturnModal] = useState(false);
-  const [returnItems, setReturnItems] = useState<{ itemId: string; productName: string; quantity: number; maxQty: number; price: number; selected: boolean }[]>([]);
+  const [returnItems, setReturnItems] = useState<{ itemId: string; productId: string; productName: string; quantity: number; maxQty: number; price: number; selected: boolean }[]>([]);
   const [returnReason, setReturnReason] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const preSelectedSaleId = route.params?.saleId;
@@ -64,7 +64,7 @@ export default function SalesHistoryScreen({ navigation, route }: SalesHistorySc
       setSaleItems(items);
       setSelectedSale(sale);
       setShowSaleDetail(true);
-      setReturnItems(items.map(i => ({ itemId: i.id, productName: i.productName, quantity: 0, maxQty: i.quantity, price: i.price, selected: false })));
+      setReturnItems(items.map(i => ({ itemId: i.id, productId: i.productId, productName: i.productName, quantity: 0, maxQty: i.quantity, price: i.price, selected: false })));
     } catch (e) { Alert.alert('Error', 'Failed to load sale details'); }
   }
 
@@ -83,16 +83,17 @@ export default function SalesHistoryScreen({ navigation, route }: SalesHistorySc
     if (!returnReason.trim()) { Alert.alert('Required', 'Please enter a return reason'); return; }
 
     try {
-      await createSalesReturn(selectedSale.id, itemsToReturn.map(r => ({
-        productId: r.itemId, productName: r.productName, quantity: r.quantity, price: r.price,
+            await createSalesReturn(selectedSale.id, itemsToReturn.map(r => ({
+        productId: r.productId, productName: r.productName, quantity: r.quantity, price: r.price,
       })), returnReason);
       setShowReturnModal(false);
       setReturnReason('');
       loadData();
       Alert.alert('Success', 'Sales return recorded successfully');
-    } catch (e) {
-      Alert.alert('Error', 'Failed to process return');
-    }
+    }     } catch (e: any) {
+      console.error('Return error:', e);
+      Alert.alert('Error', e.message || 'Failed to process return');
+  }
   }
 
   function renderSaleItem({ item }: { item: Sale }) {
