@@ -75,7 +75,7 @@ export default function BillingScreen({ navigation, route }: BillingScreenProps)
         addToCart(route.params.scannedProduct);
         navigation.setParams({ scannedProduct: undefined });
             }
-      }
+      
       if (route.params?.customerId && !preLoadedCustomerRef.current) {
         preLoadedCustomerRef.current = true;
         const customerId = route.params.customerId;
