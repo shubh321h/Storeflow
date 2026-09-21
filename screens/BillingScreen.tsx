@@ -41,6 +41,7 @@ export default function BillingScreen({ navigation, route }: BillingScreenProps)
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const preLoadedCustomerRef = useRef(false);
+  const lastScannedRef = useRef<any>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'upi' | 'credit' | 'card'>('cash');
   const [paidAmount, setPaidAmount] = useState('');
@@ -69,9 +70,11 @@ export default function BillingScreen({ navigation, route }: BillingScreenProps)
 
   useFocusEffect(
     useCallback(() => {
-      if (route.params?.scannedProduct) {
+            if (route.params?.scannedProduct && lastScannedRef.current !== route.params) {
+        lastScannedRef.current = route.params;
         addToCart(route.params.scannedProduct);
         navigation.setParams({ scannedProduct: undefined });
+            }
       }
       if (route.params?.customerId && !preLoadedCustomerRef.current) {
         preLoadedCustomerRef.current = true;
@@ -102,27 +105,28 @@ export default function BillingScreen({ navigation, route }: BillingScreenProps)
       return;
     }
 
-    const existing = cart.find(item => item.product.id === product.id);
-    if (existing) {
-      if (existing.quantity + 1 > product.currentStock) {
-        Alert.alert('Stock Limit', `Only ${product.currentStock} units available.`);
-        return;
+        setCart(prevCart => {
+      const existing = prevCart.find(item => item.product.id === product.id);
+      if (existing) {
+        if (existing.quantity + 1 > product.currentStock) {
+          Alert.alert('Stock Limit', `Only ${product.currentStock} units available.`);
+          return prevCart;
+        }
+        return prevCart.map(item =>
+          item.product.id === product.id
+            ? { ...item, quantity: item.quantity + 1, total: (item.quantity + 1) * item.price }
+            : item
+        );
       }
-      setCart(cart.map(item =>
-        item.product.id === product.id
-          ? { ...item, quantity: item.quantity + 1, total: (item.quantity + 1) * item.price }
-          : item
-      ));
-    } else {
-      setCart([...cart, {
+      return [...prevCart, {
         product,
         quantity: 1,
         price: product.sellingPrice,
         discount: 0,
         total: product.sellingPrice,
-      }]);
+      }];
+    });
     }
-  }
 
   function confirmLooseEntry() {
     if (!looseProduct) return;
@@ -137,58 +141,62 @@ export default function BillingScreen({ navigation, route }: BillingScreenProps)
       Alert.alert('Stock Limit', `Only ${looseProduct.currentStock} ${looseProduct.unit} available.`);
       return;
     }
-    const existing = cart.find(item => item.product.id === looseProduct.id);
-    if (existing) {
-      const newQuantity = roundTo2(looseEditMode ? quantity : existing.quantity + quantity);
-      if (newQuantity <= 0) {
-        setCart(cart.filter(item => item.product.id !== looseProduct.id));
-        setLooseProduct(null);
-        setLooseEntryValue('');
-        return;
+    let stockExceeded = false;
+    setCart(prevCart => {
+      const existing = prevCart.find(item => item.product.id === looseProduct.id);
+      if (existing) {
+        const newQuantity = roundTo2(looseEditMode ? quantity : existing.quantity + quantity);
+        if (newQuantity <= 0) {
+          return prevCart.filter(item => item.product.id !== looseProduct.id);
+        }
+        if (newQuantity > looseProduct.currentStock) {
+          stockExceeded = true;
+          return prevCart;
+        }
+        return prevCart.map(item =>
+          item.product.id === looseProduct.id
+            ? { ...item, quantity: newQuantity, total: roundTo2(newQuantity * item.price) }
+            : item
+        );
       }
-      if (newQuantity > looseProduct.currentStock) {
-        Alert.alert('Stock Limit', `Only ${looseProduct.currentStock} ${looseProduct.unit} available.`);
-        return;
-      }
-      setCart(cart.map(item =>
-        item.product.id === looseProduct.id
-          ? { ...item, quantity: newQuantity, total: roundTo2(newQuantity * item.price) }
-          : item
-      ));
-    } else {
-      setCart([...cart, {
+      return [...prevCart, {
         product: looseProduct,
         quantity,
         price: looseProduct.sellingPrice,
         discount: 0,
         total: amount,
-      }]);
+      }];
+    });
+    if (stockExceeded) {
+      Alert.alert('Stock Limit', `Only ${looseProduct.currentStock} ${looseProduct.unit} available.`);
+      return;
     }
     setLooseProduct(null);
     setLooseEntryValue('');
     setLooseEditMode(false);
   }
-
-  
-
-  function updateCartItemQuantity(productId: string, quantity: number) {
-    const item = cart.find(c => c.product.id === productId);
-    if (!item) return;
-    if (quantity <= 0) {
-      setCart(cart.filter(c => c.product.id !== productId));
-      return;
+    function updateCartItemQuantity(productId: string, quantity: number) {
+    let stockLimit: number | null = null;
+    setCart(prevCart => {
+      const item = prevCart.find(c => c.product.id === productId);
+      if (!item) return prevCart;
+      if (quantity <= 0) {
+        return prevCart.filter(c => c.product.id !== productId);
+      }
+      if (quantity > item.product.currentStock) {
+        stockLimit = item.product.currentStock;
+        return prevCart;
+      }
+      return prevCart.map(c =>
+        c.product.id === productId
+          ? { ...c, quantity, total: quantity * c.price - c.discount }
+          : c
+      );
+    });
+    if (stockLimit !== null) {
+      Alert.alert('Stock Limit', `Only ${stockLimit} units available.`);
     }
-    if (quantity > item.product.currentStock) {
-      Alert.alert('Stock Limit', `Only ${item.product.currentStock} units available.`);
-      return;
     }
-    setCart(cart.map(c =>
-      c.product.id === productId
-        ? { ...c, quantity, total: quantity * c.price - c.discount }
-        : c
-    ));
-  }
-
     function openEditCartItem(item: CartItem) {
     if (item.product.productType === 'loose') {
       const config = getLooseEntryConfig(item.product.unit);
@@ -207,7 +215,7 @@ export default function BillingScreen({ navigation, route }: BillingScreenProps)
     if (!cartItemEdit) return;
     const price = parseFloat(editPrice) || cartItemEdit.price;
     const discount = parseFloat(editDiscount) || 0;
-    setCart(cart.map(c =>
+        setCart(prevCart => prevCart.map(c =>
       c.product.id === cartItemEdit.product.id
         ? { ...c, price, discount, total: c.quantity * price - discount }
         : c
