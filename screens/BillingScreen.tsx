@@ -584,16 +584,27 @@ export default function BillingScreen({ navigation, route }: BillingScreenProps)
               return (
                 <View>
                   <ProductCard product={item} onPress={() => addToCart(item)} />
-                  {inCart && (
-                    <View style={styles.inCartBadge}>
-                      <Text style={styles.inCartBadgeText}>
-                        In cart: {inCart.quantity} {item.productType === 'loose' ? item.unit : ''}
-                      </Text>
-                    </View>
+                                    {inCart && (
+                    item.productType === 'loose' ? (
+                      <TouchableOpacity style={styles.inCartBadge} onPress={() => openEditCartItem(inCart)}>
+                        <Text style={styles.inCartBadgeText}>
+                          In cart: {inCart.quantity} {item.unit} · Tap to edit
+                        </Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <View style={styles.inCartQtyRow}>
+                        <Text style={styles.inCartBadgeText}>In cart</Text>
+                        <QuantitySelector
+                          quantity={inCart.quantity}
+                          onIncrement={() => updateCartItemQuantity(item.id, inCart.quantity + 1)}
+                          onDecrement={() => updateCartItemQuantity(item.id, inCart.quantity - 1)}
+                          min={0}
+                          max={item.currentStock}
+                          size="sm"
+                        />
+                      </View>
+                    )
                   )}
-                </View>
-              );
-            }}
             contentContainerStyle={styles.listContent}
             ListEmptyComponent={
               searchQuery.length > 0 ? (
@@ -1272,6 +1283,19 @@ const styles = StyleSheet.create({
     borderRadius: BORDER_RADIUS.sm,
     paddingHorizontal: SPACING.sm,
     paddingVertical: 2,
+  },
+    inCartQtyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: -SPACING.sm,
+    marginBottom: SPACING.sm,
+    marginHorizontal: SPACING.lg,
+    alignSelf: 'flex-start',
+    backgroundColor: COLORS.primaryLight,
+    borderRadius: BORDER_RADIUS.sm,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 2,
+    gap: SPACING.sm,
   },
   inCartBadgeText: {
     color: COLORS.primary,
