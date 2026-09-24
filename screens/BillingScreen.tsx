@@ -604,8 +604,9 @@ export default function BillingScreen({ navigation, route }: BillingScreenProps)
                         />
                       </View>
                     )
-                  )}
-                  );
+                              )}
+                </View>
+              );
             }}
             contentContainerStyle={styles.listContent}
             ListEmptyComponent={
