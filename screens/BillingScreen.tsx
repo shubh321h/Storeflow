@@ -605,6 +605,8 @@ export default function BillingScreen({ navigation, route }: BillingScreenProps)
                       </View>
                     )
                   )}
+                  );
+            }}
             contentContainerStyle={styles.listContent}
             ListEmptyComponent={
               searchQuery.length > 0 ? (
