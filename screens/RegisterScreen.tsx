@@ -6,7 +6,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOW, COMMON_STYLES } from '../lib/theme';
-
+import { validateEmail } from '../lib/emailValidation';
 interface RegisterScreenProps {
   onNavigate: (screen: string) => void;
 }
@@ -35,7 +35,14 @@ export default function RegisterScreen({ onNavigate }: RegisterScreenProps) {
       setError('Password must be at least 6 characters');
       return;
     }
-    setLoading(true);
+        setLoading(true);
+
+    const emailCheck = await validateEmail(email.trim());
+    if (!emailCheck.isValid) {
+      setLoading(false);
+      setError(emailCheck.reason || 'Please enter a valid email address');
+      return;
+    }
     const result = await register(name.trim(), email.trim(), password.trim());
     setLoading(false);
     if (!result.success) {
