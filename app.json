@@ -12,7 +12,8 @@
     },
     "android": {
       "package": "com.storeflow.app",
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -26,7 +27,10 @@
       "expo-image",
       "expo-secure-store",
       "expo-sharing",
-      "expo-web-browser"
+      "expo-web-browser",
+      "@react-native-firebase/app",
+      "@react-native-firebase/auth",
+      "./plugins/withReleaseSigning.js"
     ]
   }
 }
