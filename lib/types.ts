@@ -2,6 +2,8 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  phone?: string;
+  phoneVerified?: boolean;
   passwordHash?: string;
   createdAt: string;
   updatedAt: string;
