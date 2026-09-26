@@ -9,6 +9,7 @@ import { Business } from '../lib/types';
 import { COLORS, SPACING, FONT_SIZE, BORDER_RADIUS, SHADOW, COMMON_STYLES } from '../lib/theme';
 import AppHeader from '../components/AppHeader';
 import PrimaryButton from '../components/PrimaryButton';
+import VerifyPhoneCard from '../components/VerifyPhoneCard';
 
 interface BusinessSettingsScreenProps {
   navigation: any;
@@ -71,6 +72,8 @@ export default function BusinessSettingsScreen({ navigation }: BusinessSettingsS
     <View style={COMMON_STYLES.screen}>
       <AppHeader title="Business Settings" onBack={() => navigation.goBack()} />
       <ScrollView contentContainerStyle={styles.scrollContent}>
+        <VerifyPhoneCard />
+
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Store Information</Text>
           <Text style={styles.label}>Store Name</Text>
