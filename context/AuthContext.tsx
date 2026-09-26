@@ -27,6 +27,8 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   register: (name: string, email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  registerWithPhone: (name: string, phone: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  linkVerifiedPhone: (phone: string) => Promise<{ success: boolean; error?: string }>;
   loginWithGoogle: () => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
 }
@@ -108,7 +110,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function loadProfile(authUser: SupabaseUser): Promise<User> {
     const { data: profile, error } = await supabase
       .from('profiles')
-      .select('id, name, email, created_at, updated_at')
+      .select('id, name, email, phone, phone_verified, created_at, updated_at')
       .eq('id', authUser.id)
       .maybeSingle();
 
@@ -118,6 +120,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       id: authUser.id,
       name: profile?.name || authUser.user_metadata?.name || authUser.email || '',
       email: profile?.email || authUser.email || '',
+      phone: profile?.phone || undefined,
+      phoneVerified: profile?.phone_verified || false,
       createdAt: profile?.created_at || authUser.created_at,
       updatedAt: profile?.updated_at || authUser.updated_at || authUser.created_at,
     };
@@ -153,6 +157,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       if (error) return { success: false, error: authErrorMessage(error) };
       if (!data.session) return { success: false, error: 'Please confirm your email before signing in.' };
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Something went wrong. Please try again.' };
+    }
+  }
+
+  // Called AFTER the phone number has already been verified via Firebase
+  // Phone Auth (see lib/firebaseAuth.ts) — this never triggers Supabase's
+  // own SMS. Requires the "Phone" provider enabled and "Confirm phone"
+  // disabled in Supabase Auth settings, since we're supplying an
+  // already-verified number ourselves.
+  async function registerWithPhone(name: string, phone: string, password: string) {
+    if (password.length < 6) return { success: false, error: 'Password must be at least 6 characters.' };
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        phone,
+        password,
+        options: {
+          data: { name: name.trim(), phone, phone_verified: true },
+        },
+      });
+      if (error) return { success: false, error: authErrorMessage(error) };
+      if (!data.session) return { success: false, error: 'Could not create your account. Please try again.' };
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Something went wrong. Please try again.' };
+    }
+  }
+
+  // Called AFTER the phone number has already been verified via Firebase
+  // Phone Auth, for a user who originally signed up with email and is now
+  // adding a phone number from settings.
+  async function linkVerifiedPhone(phone: string) {
+    if (!user) return { success: false, error: 'You must be signed in.' };
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ phone, phone_verified: true, updated_at: new Date().toISOString() })
+        .eq('id', user.id);
+      if (error) return { success: false, error: error.message };
+      setUser({ ...user, phone, phoneVerified: true });
       return { success: true };
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : 'Something went wrong. Please try again.' };
@@ -232,6 +277,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         loginWithGoogle,
         register,
+        registerWithPhone,
+        linkVerifiedPhone,
         logout,
       }}
     >
