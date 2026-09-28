@@ -263,15 +263,15 @@ function AppNavigator() {
         name="Reports"
         component={ReportsScreen}
       />
-      <RootStack.Screen
+            <RootStack.Screen
         name="Settings"
         component={SettingsScreen}
       />
-    </RootStack.Navigator>
-          <RootStack.Screen
+      <RootStack.Screen
         name="UploadedBills"
         component={UploadedBillsScreen}
       />
+    </RootStack.Navigator>
   );
 }
 
