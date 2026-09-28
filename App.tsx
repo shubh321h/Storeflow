@@ -31,6 +31,7 @@ import TransactionHistoryScreen from './screens/TransactionHistoryScreen';
 import ReportsScreen from './screens/ReportsScreen';
 import SettingsScreen from './screens/SettingsScreen';
 
+import UploadedBillsScreen from './screens/UploadedBillsScreen';
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 const RootStack = createNativeStackNavigator();
@@ -267,6 +268,10 @@ function AppNavigator() {
         component={SettingsScreen}
       />
     </RootStack.Navigator>
+          <RootStack.Screen
+        name="UploadedBills"
+        component={UploadedBillsScreen}
+      />
   );
 }
 
