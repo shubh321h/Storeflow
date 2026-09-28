@@ -25,6 +25,7 @@ export default function MoreScreen({ navigation }: MoreScreenProps) {
   const menuItems = [
     { icon: 'receipt-outline', title: 'Sales History', subtitle: 'View all past sales', onPress: () => navigation.navigate('SalesHistory') },
     { icon: 'cart-outline', title: 'Purchases', subtitle: 'Manage purchases from suppliers', onPress: () => navigation.navigate('Purchase') },
+        { icon: 'images-outline', title: 'Upload Media Bills', subtitle: 'Store bill photos with amount and status', onPress: () => navigation.navigate('UploadedBills') },
     { icon: 'wallet-outline', title: 'Expenses', subtitle: 'Track store expenses', onPress: () => navigation.navigate('Expenses') },
     { icon: 'people-outline', title: 'Suppliers', subtitle: 'Manage suppliers', onPress: () => navigation.navigate('Suppliers') },
     { icon: 'time-outline', title: 'Transaction History', subtitle: 'All transactions in one place', onPress: () => navigation.navigate('TransactionHistory') },
