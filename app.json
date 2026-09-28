@@ -25,6 +25,10 @@
     ],
     "plugins": [
       "expo-image",
+            [
+        "expo-image-picker",
+        { "cameraPermission": "Allow StoreFlow to take photos of bills.", "photosPermission": "Allow StoreFlow to select bill photos." }
+      ],
       "expo-secure-store",
       "expo-sharing",
       "expo-web-browser",
