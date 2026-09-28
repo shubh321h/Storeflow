@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import { File } from 'expo-file-system';
 import { supabase } from './supabase';
 import { generateId } from './utils';
 import {
@@ -94,18 +95,11 @@ export async function createUploadedBill(input: CreateUploadedBillInput): Promis
 
   const mediaPath = `${input.businessId}/${id}.${ext}`;
 
-  let body: FormData | Blob;
+  let body: ArrayBuffer | Blob;
   if (Platform.OS === 'web') {
     body = await (await fetch(input.media.uri)).blob();
   } else {
-    // React Native streams file:// / content:// URIs natively via FormData.
-    const form = new FormData();
-    form.append('file', {
-      uri: input.media.uri,
-      name: `${id}.${ext}`,
-      type: contentType,
-    } as any);
-    body = form;
+    body = await new File(input.media.uri).arrayBuffer();
   }
 
   const { error: uploadError } = await supabase.storage
