@@ -230,7 +230,7 @@ export interface CustomerLedger {
   customerId: string;
   customerName: string;
   date: string;
-  type: 'opening_balance' | 'credit_sale' | 'payment_received' | 'debit_adjustment' | 'credit_adjustment' | 'sales_return';
+    type: 'opening_balance' | 'credit_sale' | 'payment_received' | 'debit_adjustment' | 'credit_adjustment' | 'sales_return' | 'uploaded_bill' | 'uploaded_bill_payment';
   description: string;
   referenceId?: string;
   debit: number;
@@ -363,4 +363,24 @@ export interface ExpenseReport {
   totalExpenses: number;
   categoryBreakdown: { category: string; amount: number; percentage: number }[];
   period: string;
+}
+
+/* Uploaded media bills (handwritten / digital bill photos) */
+export type UploadedBillType = 'handwritten' | 'digital';
+export type UploadedBillPaymentStatus = 'paid' | 'credit';
+
+export interface UploadedBill {
+  id: string;
+  businessId: string;
+  customerId?: string;
+  customerName?: string;
+  mediaPath: string;
+  billType: UploadedBillType;
+  amount: number;
+  paymentStatus: UploadedBillPaymentStatus;
+  uploadedAt: string;
+  paidAt?: string;
+  deleteAfter?: string;
+  createdAt: string;
+  updatedAt: string;
 }
